@@ -54,8 +54,22 @@ await fs.mkdir(DIR, { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 900, height: 1400 }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.warn('page error:', e.message));
-await page.goto(`${APP}/#/mukhwak`, { waitUntil: 'networkidle', timeout: 120_000 });
-await page.waitForFunction(() => window.sevalekhMukhwak && window.sevalekhMukhwak.ready, null, { timeout: 120_000 });
+// Not 'networkidle': SevaLekh keeps a live Firebase connection open, so the
+// network never goes quiet. Wait for the page's own "ready" instead.
+page.on('console', (m) => { if (m.type() === 'error') console.warn('page console:', m.text()); });
+await page.goto(`${APP}/#/mukhwak`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+try {
+  await page.waitForFunction(() => window.sevalekhMukhwak && window.sevalekhMukhwak.ready, null, { timeout: 120_000 });
+} catch {
+  // The vyakhya didn't finish loading in time: go on with what the page has
+  // (Gurbani, teeka) rather than make nothing — if the page has the MukhWak at all.
+  const has = await page.evaluate(() => !!window.sevalekhMukhwak);
+  if (!has) {
+    console.error('The MukhWak page never got ready. Page text:\n' + (await page.evaluate(() => document.body.innerText.slice(0, 800))));
+    process.exit(1);
+  }
+  console.warn('Vyakhya still loading after 2 min — making the media with what is there.');
+}
 const info = await page.evaluate(() => {
   const m = window.sevalekhMukhwak;
   return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl };
@@ -69,9 +83,21 @@ if (day !== indiaDate() && !FORCE) {
 
 // ── 2. SGPC's recording ──
 const audioPath = path.resolve('audio.mp3');
-const ar = await fetch(info.audioUrl);
-if (!ar.ok) { console.error(`SGPC audio not up yet (${ar.status}) — will try again at the next run.`); process.exit(1); }
-await fs.writeFile(audioPath, Buffer.from(await ar.arrayBuffer()));
+// A normal browser's identity (SGPC's Cloudflare may turn away bare scripts),
+// then the Admin's audio relay (repository variable AUDIO_RELAY) if that fails.
+const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' };
+const relay = (process.env.AUDIO_RELAY || '').trim();
+const audioTries = [info.audioUrl, ...(relay ? [relay.includes('{url}') ? relay.replace('{url}', encodeURIComponent(info.audioUrl)) : relay + encodeURIComponent(info.audioUrl)] : [])];
+let audioBuf = null;
+for (const u of audioTries) {
+  try {
+    const ar = await fetch(u, { headers: UA });
+    if (ar.ok) { audioBuf = Buffer.from(await ar.arrayBuffer()); if (audioBuf.length > 10_000) break; audioBuf = null; }
+    console.warn(`Audio ${u.startsWith(info.audioUrl) ? 'from SGPC' : 'via relay'}: HTTP ${ar.status}`);
+  } catch (e) { console.warn(`Audio fetch failed: ${e.message}`); }
+}
+if (!audioBuf) { console.error('SGPC audio not available (not up yet, or blocked) — will try again at the next run.'); process.exit(1); }
+await fs.writeFile(audioPath, audioBuf);
 const audioSec = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', audioPath]).toString().trim());
 log(`Audio: ${audioSec.toFixed(1)} s`);
 

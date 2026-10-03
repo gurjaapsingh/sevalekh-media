@@ -43,6 +43,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 - `LANGS` — e.g. `pa,en,hi,pnb` (any language the MukhWak page offers that day)
 - `APP_URL` — if SevaLekh moves to its own domain
+- `AUDIO_RELAY` — your Cloudflare audio relay address (same as in SevaLekh's Admin), used only if SGPC turns the robot away
 
 ## Good to know
 
