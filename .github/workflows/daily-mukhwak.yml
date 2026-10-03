@@ -51,8 +51,10 @@ jobs:
           AUDIO_RELAY: ${{ vars.AUDIO_RELAY || '' }}
           # Optional Telegram channel posts (SOCIAL-AUTOPOST.md): scheduled runs, or "post" ticked.
           POST: ${{ (github.event_name == 'schedule' || inputs.post) && '1' || '' }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Repository *secrets* (best); repository variables are accepted too.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOKEN_IN_VARS: ${{ secrets.TELEGRAM_BOT_TOKEN == '' && vars.TELEGRAM_BOT_TOKEN != '' && '1' || '' }}
           TELEGRAM_LANG: ${{ vars.TELEGRAM_LANG || '' }}
           TELEGRAM_VIDEO: ${{ vars.TELEGRAM_VIDEO || '' }}
           TELEGRAM_TEXT: ${{ vars.TELEGRAM_TEXT || '' }}

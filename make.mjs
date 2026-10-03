@@ -201,7 +201,7 @@ async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false,
 // ── 4. The index the app reads, and a small page for people ──
 await fs.writeFile(path.join(DIR, 'latest.json'), JSON.stringify(index, null, 1));
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
-  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 ${k} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/?d=${day}&l=${l}&k=${k}">🎬 ${k} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   `<p>${(e.story?.images ?? []).map((f) => `<a href="mukhwak/${f}"><img src="mukhwak/${f}" height="160" loading="lazy"></a>`).join(' ')}</p>`).join('');
 await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>SevaLekh · ਮੁੱਖਵਾਕ ${day}</title><body style="font-family:sans-serif;max-width:60rem;margin:auto;padding:1rem">
@@ -215,8 +215,14 @@ await output('skip', 'false');
 // TELEGRAM_TEXT (1 = also the MukhWak as text, with the audio link; 0 = video only).
 const TG = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TG_CHAT = (process.env.TELEGRAM_CHAT_ID || '').trim();
+if (process.env.TELEGRAM_TOKEN_IN_VARS) {
+  console.warn('Telegram: the bot token is a repository VARIABLE, which anyone who can see the repository can read. Move it to Settings → Secrets and variables → Actions → Secrets (same name), then delete the variable.');
+}
 if (process.env.POST === '1' && TG && TG_CHAT) {
-  try { await postTelegram(); } catch (e) { console.warn(`Telegram: ${e.message} — the files are published anyway.`); }
+  try { await postTelegram(); } catch (e) { console.warn(`::warning::Telegram: ${e.message} — the files are published anyway.`); }
+} else if (process.env.POST === '1') {
+  const missing = [!TG && 'TELEGRAM_BOT_TOKEN', !TG_CHAT && 'TELEGRAM_CHAT_ID'].filter(Boolean).join(' and ');
+  console.warn(`::warning::Telegram: not posting — ${missing} not found. Add it under the repository's Settings → Secrets and variables → Actions → *Secrets* tab → "New repository secret" (not Environment secrets, not Codespaces/Dependabot secrets).`);
 } else if (TG && TG_CHAT) log('Telegram: not posting on this run (manual run without "post" ticked).');
 
 async function postTelegram() {
