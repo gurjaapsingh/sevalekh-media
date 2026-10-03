@@ -130,6 +130,17 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
     entry[fmt] = { images };
     log(`${lang} ${fmt}: ${images.length} pictures`);
 
+    // A wide (1200×630) link-preview picture for SevaLekh's video pages (/v/…): the
+    // first 4:5 card whole, on a blurred copy of itself. Facebook, WhatsApp and X crop
+    // tall pictures to this shape.
+    if (fmt === 'post' && images.length) {
+      const prev = `${lang}/preview.jpg`;
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(DIR, images[0]), '-filter_complex',
+        '[0]scale=1200:630:force_original_aspect_ratio=increase,crop=1200:630,boxblur=30:2,eq=brightness=-0.06[bg];' +
+        '[0]scale=-2:630[fg];[bg][fg]overlay=(W-w)/2:0', '-q:v', '3', path.join(DIR, prev)]);
+      entry.preview = prev;
+    }
+
     // ── 3. Videos (tall format only) ──
     if (fmt !== 'story') continue;
     entry.story.videos = {};
