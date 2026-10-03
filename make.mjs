@@ -10,8 +10,12 @@
  * 4. Writes site/mukhwak/latest.json (read by the app) and the files; the
  *    workflow publishes site/ on GitHub Pages.
  *
+ * 5. Optionally posts the day's video and text to a Telegram channel
+ *    (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID — see SOCIAL-AUTOPOST.md).
+ *
  * Env: APP_URL (https://granth.web.app), LANGS (pa,en,hi), PAGES_URL (to skip
- * when today's are already published), FORCE=1 to make them again.
+ * when today's are already published), FORCE=1 to make them again, POST=1 to
+ * post to Telegram (scheduled runs, or "post" ticked on a manual run).
  */
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
@@ -74,6 +78,7 @@ const info = await page.evaluate(() => {
   const m = window.sevalekhMukhwak;
   return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl, bot: m.bot || { fullRes: 1080, speeds: [] } };
 });
+log(`Admin's robot settings as the page sees them: ${JSON.stringify(info.bot)}`);
 const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${String(info.date.day).padStart(2, '0')}`;
 log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join(', ')}`);
 // Admin → 2 · MukhWak → What the robot makes
@@ -108,8 +113,10 @@ log(`Audio: ${audioSec.toFixed(1)} s`);
 const totals = Object.values(LENGTHS).map((s) => Math.min(s, audioSec));
 const index = { date: day, ang: info.ang, made: new Date().toISOString(), langs: {} };
 
+const texts = {};   // lang → the MukhWak as text messages, for Telegram
 for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
   const entry = { caption: await page.evaluate((c) => window.sevalekhMukhwak.caption(c), lang) };
+  texts[lang] = await page.evaluate((c) => (window.sevalekhMukhwak.parts ? window.sevalekhMukhwak.parts(c) : []), lang);
   await fs.mkdir(path.join(DIR, lang), { recursive: true });
 
   for (const fmt of ['story', 'post']) {
@@ -201,4 +208,50 @@ await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="
 <h1>ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ · ${day} · ਅੰਗ ${info.ang}</h1><p><a href="${APP}/#/mukhwak">${APP.replace(/^https?:\/\//, '')}</a></p>${links}</body>`);
 await fs.writeFile(path.join(OUT, '.nojekyll'), '');
 await output('skip', 'false');
+
+// ── 5. Telegram channel (optional) ──
+// Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (@channel or -100…); variables
+// TELEGRAM_LANG (pa), TELEGRAM_VIDEO (short; may be a list: short,full-x2.5),
+// TELEGRAM_TEXT (1 = also the MukhWak as text, with the audio link; 0 = video only).
+const TG = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+const TG_CHAT = (process.env.TELEGRAM_CHAT_ID || '').trim();
+if (process.env.POST === '1' && TG && TG_CHAT) {
+  try { await postTelegram(); } catch (e) { console.warn(`Telegram: ${e.message} — the files are published anyway.`); }
+} else if (TG && TG_CHAT) log('Telegram: not posting on this run (manual run without "post" ticked).');
+
+async function postTelegram() {
+  const lang = (process.env.TELEGRAM_LANG || LANGS[0] || 'pa').trim();
+  const e = index.langs[lang];
+  if (!e) throw new Error(`no media in "${lang}" today`);
+  const call = async (method, body) => {
+    const r = await fetch(`https://api.telegram.org/bot${TG}/${method}`, { method: 'POST', body });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) throw new Error(`${method}: ${j.description || 'HTTP ' + r.status}`);
+  };
+  const keys = (process.env.TELEGRAM_VIDEO || 'short').split(',').map((k) => k.trim()).filter(Boolean);
+  let first = true;
+  for (const k of keys) {
+    const v = e.story?.videos?.[k] ?? (k === 'short' || k === 'medium' ? e.story?.videos?.full : undefined);
+    if (!v) { console.warn(`Telegram: no "${k}" video today`); continue; }
+    const f = new FormData();
+    f.append('chat_id', TG_CHAT);
+    f.append('video', new Blob([await fs.readFile(path.join(DIR, v.file))], { type: 'video/mp4' }), path.basename(v.file));
+    f.append('width', '1080'); f.append('height', '1920');   // 9:16 — Telegram shows it tall, without black bars
+    f.append('duration', String(v.seconds));
+    f.append('supports_streaming', 'true');
+    // The caption has no audio link: the video carries the audio. (Telegram allows 1,024 characters.)
+    if (first && e.caption) f.append('caption', e.caption.slice(0, 1024));
+    await call('sendVideo', f);
+    log(`Telegram: sent ${lang} ${k} video`);
+    first = false;
+  }
+  if (process.env.TELEGRAM_TEXT !== '0') {
+    for (const t of texts[lang] ?? []) {
+      const f = new FormData();
+      f.append('chat_id', TG_CHAT); f.append('text', t);
+      await call('sendMessage', f);
+    }
+    if (texts[lang]?.length) log(`Telegram: sent the MukhWak text in ${texts[lang].length} message(s)`);
+  }
+}
 log('Done.');

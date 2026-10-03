@@ -9,7 +9,7 @@ What it makes, for each language in `LANGS` (default `pa,en,hi`):
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-short.mp4` (1 min), `video-medium.mp4` (3 min), `video-full.mp4` (whole recording, 720p) — each under 44 MB |
+| Videos 9:16 | `video-short.mp4` (1 min), `video-medium.mp4` (3 min), `video-full.mp4` (whole recording, 1080p or 720p), `video-full-x1.5.mp4` … (sped-up, if ticked in Admin) — each under 44 MB |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
 
@@ -45,7 +45,14 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 - `APP_URL` — if SevaLekh moves to its own domain
 - `AUDIO_RELAY` — your Cloudflare audio relay address (same as in SevaLekh's Admin), used only if SGPC turns the robot away
 
+## Posting to social media
+
+- **Telegram channel — built in.** Add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` and every morning's run posts the video file (caption without the audio link) and the MukhWak text (with the audio link) to your channel.
+- Facebook, Instagram, YouTube, WhatsApp, X, TikTok and others: step-by-step in **[SOCIAL-AUTOPOST.md](SOCIAL-AUTOPOST.md)**.
+
 ## Good to know
+
+- **Sped-up videos:** the robot makes exactly the speeds ticked in SevaLekh's Admin (each run's log prints them: *"Admin's robot settings as the page sees them"*). It doesn't choose a speed to fit 3 minutes.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).
