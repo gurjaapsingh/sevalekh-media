@@ -201,7 +201,7 @@ async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false,
 // ── 4. The index the app reads, and a small page for people ──
 await fs.writeFile(path.join(DIR, 'latest.json'), JSON.stringify(index, null, 1));
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
-  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/?d=${day}&l=${l}&k=${k}">🎬 ${k} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 ${k} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   `<p>${(e.story?.images ?? []).map((f) => `<a href="mukhwak/${f}"><img src="mukhwak/${f}" height="160" loading="lazy"></a>`).join(' ')}</p>`).join('');
 await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>SevaLekh · ਮੁੱਖਵਾਕ ${day}</title><body style="font-family:sans-serif;max-width:60rem;margin:auto;padding:1rem">
