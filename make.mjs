@@ -72,10 +72,14 @@ try {
 }
 const info = await page.evaluate(() => {
   const m = window.sevalekhMukhwak;
-  return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl };
+  return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl, bot: m.bot || { fullRes: 1080, speeds: [] } };
 });
 const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${String(info.date.day).padStart(2, '0')}`;
 log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join(', ')}`);
+// Admin → 2 · MukhWak → What the robot makes
+const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
+const SPEEDS = (info.bot.speeds || []).map(Number).filter((x) => x > 1 && x <= 4);
+log(`Full video ${FULL_RES}p; sped-up versions: ${SPEEDS.length ? SPEEDS.map((x) => '×' + x).join(', ') : 'none'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -128,9 +132,21 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
       const T = totals[k];
       if (len !== 'full' && LENGTHS[len] >= audioSec) continue;   // the recording is shorter: “full” covers it
       const file = `${lang}/video-${len}.mp4`;
-      const bytes = await makeVideo(res.plans[k], images, T, path.join(DIR, file), len === 'full' && T > 200);
+      const bytes = await makeVideo(res.plans[k], images, T, path.join(DIR, file), { width: len === 'full' && T > 200 ? FULL_RES : 1080, long: len === 'full' && T > 200 });
       entry.story.videos[len] = { file, seconds: Math.round(T), bytes };
       log(`${lang} ${len}: ${Math.round(T)} s, ${(bytes / 1e6).toFixed(1)} MB`);
+    }
+    // Sped-up full videos: the full video's timeline, compressed; the audio
+    // faster at the same pitch (ffmpeg atempo).
+    const fullPlan = res.plans[names.indexOf('full')];
+    for (const sp of SPEEDS) {
+      const T = audioSec / sp;
+      const plan = fullPlan.map((p) => ({ ...p, start: p.start / sp, end: p.end / sp }));
+      const key = `full-x${sp}`;
+      const file = `${lang}/video-${key}.mp4`;
+      const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: T > 200 ? FULL_RES : 1080, long: T > 200, speed: sp });
+      entry.story.videos[key] = { file, seconds: Math.round(T), bytes, speed: sp };
+      log(`${lang} ${key}: ${Math.round(T)} s, ${(bytes / 1e6).toFixed(1)} MB`);
     }
   }
   index.langs[lang] = entry;
@@ -138,7 +154,7 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
 await browser.close();
 
 /** Slideshow + audio with ffmpeg; made again smaller if it comes out too big to share. */
-async function makeVideo(plan, images, T, out, long) {
+async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false, speed = 1 } = {}) {
   const list = path.resolve('list.txt');
   const lines = [];
   for (const p of plan) {
@@ -147,7 +163,10 @@ async function makeVideo(plan, images, T, out, long) {
   lines.push(`file '${path.join(DIR, images[plan[plan.length - 1].card])}'`);   // concat needs the last one twice
   await fs.writeFile(list, lines.join('\n'));
   const fade = Math.min(2.5, T * 0.1);
-  let width = long ? 720 : 1080, crf = long ? 30 : 26, fps = long ? 6 : 24;
+  let width = w0, crf = long ? (w0 >= 1080 ? 28 : 30) : 26, fps = long ? 6 : 24;
+  // atempo takes at most 2× per step, so 2.5× is 2 × 1.25.
+  const tempo = [];
+  for (let left = speed; left > 1.0001;) { const f = Math.min(2, left); tempo.push(`atempo=${f.toFixed(4)}`); left /= f; }
   for (let attempt = 0; attempt < 3; attempt++) {
     const maxrate = Math.max(100_000, Math.round((LIMIT * 8 * 0.85) / T - 96_000));
     execFileSync('ffmpeg', [
@@ -160,7 +179,7 @@ async function makeVideo(plan, images, T, out, long) {
       '-c:v', 'libx264', '-preset', 'medium', '-tune', 'stillimage', '-crf', String(crf),
       '-maxrate', String(maxrate), '-bufsize', String(maxrate * 2),
       '-c:a', 'aac', '-b:a', '96k',
-      '-af', `afade=t=out:st=${Math.max(0, T - fade).toFixed(2)}:d=${fade.toFixed(2)}`,
+      '-af', [...tempo, `afade=t=out:st=${Math.max(0, T - fade).toFixed(2)}:d=${fade.toFixed(2)}`].join(','),
       '-movflags', '+faststart',
       out,
     ], { stdio: 'inherit' });
