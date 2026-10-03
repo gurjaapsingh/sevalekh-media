@@ -1,0 +1,8 @@
+{
+  "name": "sevalekh-media-bot",
+  "private": true,
+  "type": "module",
+  "description": "Makes the day's SevaLekh MukhWak pictures and videos every morning and publishes them on GitHub Pages.",
+  "scripts": { "make": "node make.mjs" },
+  "dependencies": { "playwright": "^1.48.0" }
+}

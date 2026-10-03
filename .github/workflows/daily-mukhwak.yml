@@ -1,0 +1,61 @@
+# 📦 SevaLekh: the day's MukhWak pictures and videos, made every morning (India time)
+# and published on GitHub Pages. Free for public repositories. See README.md.
+name: Daily MukhWak media
+
+on:
+  schedule:
+    - cron: '45 0 * * *'   # 06:15 India — usually after SGPC posts the MukhWak and its audio
+    - cron: '30 2 * * *'   # 08:00 India — tries again if the first run was too early
+    - cron: '0 5 * * *'    # 10:30 India — last try
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Make again even if today''s are already published'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      skip: ${{ steps.make.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - id: make
+        run: node make.mjs
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://granth.web.app' }}
+          LANGS: ${{ vars.LANGS || 'pa,en,hi' }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          FORCE: ${{ inputs.force && '1' || '' }}
+      - if: steps.make.outputs.skip != 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
