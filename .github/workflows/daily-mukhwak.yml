@@ -4,9 +4,9 @@ name: Daily MukhWak media
 
 on:
   schedule:
-    - cron: '45 0 * * *'   # 06:15 India — usually after SGPC posts the MukhWak and its audio
-    - cron: '30 2 * * *'   # 08:00 India — tries again if the first run was too early
-    - cron: '0 5 * * *'    # 10:30 India — last try
+    - cron: '45 0 * * *'   # 05:45 India — usually after SGPC posts the MukhWak and its audio
+    - cron: '30 2 * * *'   # 06:15 India — tries again if the first run was too early
+    - cron: '0 5 * * *'    # 06:45 India — last try
   workflow_dispatch:
     inputs:
       force:
