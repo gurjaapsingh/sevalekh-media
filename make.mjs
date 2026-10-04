@@ -308,11 +308,29 @@ await output('skip', 'false');
 // TELEGRAM_LANG (pa), TELEGRAM_VIDEO (short; may be a list: short,full-x2.5),
 // TELEGRAM_TEXT (1 = also the MukhWak as text, with the audio link; 0 = video only).
 const TG = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
-const TG_CHAT = (process.env.TELEGRAM_CHAT_ID || '').trim();
+/*
+ * The channel as Telegram's API wants it: "@name" for a public channel, or the
+ * numeric id (-100…) for a private one. People paste all sorts — a t.me link,
+ * the name without @, the channel's title — so tidy the common forms.
+ */
+function chatIdOf(raw) {
+  const s = (raw || '').trim().replace(/^["']|["']$/g, '');
+  if (!s) return '';
+  if (/^-?\d+$/.test(s)) return s;                                  // numeric id
+  const link = s.match(/^(?:https?:\/\/)?(?:t|telegram)\.me\/(?:s\/)?([A-Za-z0-9_]{4,})\/?$/i);
+  if (link) return `@${link[1]}`;
+  if (/^(?:https?:\/\/)?(?:t|telegram)\.me\/(\+|joinchat\/)/i.test(s)) {
+    console.warn('::warning::Telegram: the channel is set as a private invite link — the bot needs the channel\'s @name (public) or its numeric id (-100…). See SOCIAL-AUTOPOST.md.');
+    return '';
+  }
+  return s.startsWith('@') ? s : `@${s.replace(/\s+/g, '')}`;
+}
+const TG_CHAT = chatIdOf(process.env.TELEGRAM_CHAT_ID);
 if (process.env.TELEGRAM_TOKEN_IN_VARS) {
   console.warn('Telegram: the bot token is a repository VARIABLE, which anyone who can see the repository can read. Move it to Settings → Secrets and variables → Actions → Secrets (same name), then delete the variable.');
 }
 if (process.env.POST === '1' && TG && TG_CHAT) {
+  log(`Telegram: posting to ${TG_CHAT}`);
   try { await postTelegram(); } catch (e) { console.warn(`::warning::Telegram: ${e.message} — the files are published anyway.`); }
 } else if (process.env.POST === '1') {
   const missing = [!TG && 'TELEGRAM_BOT_TOKEN', !TG_CHAT && 'TELEGRAM_CHAT_ID'].filter(Boolean).join(' and ');
@@ -326,7 +344,14 @@ async function postTelegram() {
   const call = async (method, body) => {
     const r = await fetch(`https://api.telegram.org/bot${TG}/${method}`, { method: 'POST', body });
     const j = await r.json().catch(() => ({}));
-    if (!j.ok) throw new Error(`${method}: ${j.description || 'HTTP ' + r.status}`);
+    if (!j.ok) {
+      const d = j.description || 'HTTP ' + r.status;
+      // The usual set-up slips, said plainly in the run's warnings.
+      const hint = /chat not found/i.test(d) ? ` — check the channel (${TG_CHAT}) and that the bot is added to it as an admin`
+        : /not enough rights|administrator|forbidden/i.test(d) ? ' — make the bot an admin of the channel with "Post messages"'
+        : /unauthorized|not found/i.test(d) && r.status === 401 ? ' — the bot token is wrong or was revoked (BotFather → /token)' : '';
+      throw new Error(`${method}: ${d}${hint}`);
+    }
   };
   const keys = (process.env.TELEGRAM_VIDEO || 'short').split(',').map((k) => k.trim()).filter(Boolean);
   let first = true;

@@ -79,9 +79,11 @@ jobs:
           # Only the morning's first build posts; a remake after edits doesn't post again.
           POST: ${{ ((github.event_name == 'schedule' && needs.check.outputs.reason == 'new') || inputs.post) && '1' || '' }}
           # Repository *secrets* (best); repository variables are accepted too.
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
-          TELEGRAM_TOKEN_IN_VARS: ${{ secrets.TELEGRAM_BOT_TOKEN == '' && vars.TELEGRAM_BOT_TOKEN != '' && '1' || '' }}
+          # (TG_MUKHWAK_BOT_TOKEN / MUKHWAK_CH: the names first used on this repository.)
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TG_MUKHWAK_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
+          # The channel isn't secret: a plain variable (e.g. @mukhwaak) is easiest to check, so it comes first.
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID || secrets.TELEGRAM_CHAT_ID || secrets.MUKHWAK_CH || vars.MUKHWAK_CH }}
+          TELEGRAM_TOKEN_IN_VARS: ${{ secrets.TELEGRAM_BOT_TOKEN == '' && secrets.TG_MUKHWAK_BOT_TOKEN == '' && vars.TELEGRAM_BOT_TOKEN != '' && '1' || '' }}
           TELEGRAM_LANG: ${{ vars.TELEGRAM_LANG || '' }}
           TELEGRAM_VIDEO: ${{ vars.TELEGRAM_VIDEO || '' }}
           TELEGRAM_TEXT: ${{ vars.TELEGRAM_TEXT || '' }}
