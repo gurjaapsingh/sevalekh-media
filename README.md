@@ -4,7 +4,7 @@ Every morning (India time) this makes the day's **ਮੁੱਖਵਾਕ pictures
 
 It is **free**: GitHub Actions and GitHub Pages cost nothing for a public repository. Nothing here touches Firebase, so SevaLekh stays on the free Spark plan.
 
-What it makes, for each language in `LANGS` (default `pa,en,hi,pnb` — ਪੰਜਾਬੀ, English, हिन्दी, شاہمکھی):
+What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰਜਾਬੀ, English, شاہمکھی, हिन्दी):
 
 | | |
 |---|---|
@@ -45,7 +45,7 @@ A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 1
 
 Optional (repository **Settings → Secrets and variables → Actions → Variables**):
 
-- `LANGS` — e.g. `pa,en,hi,pnb` (any language the MukhWak page offers that day)
+- `LANGS` — e.g. `pa,en,pnb,hi` (any language the MukhWak page offers that day)
 - `APP_URL` — if SevaLekh moves to its own domain
 - `AUDIO_RELAY` — your Cloudflare audio relay address (same as in SevaLekh's Admin), used only if SGPC turns the robot away
 
