@@ -17,7 +17,7 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 
 ## How it works
 
-1. A headless browser opens `https://granth.web.app/#/mukhwak` and asks the page for its cards (`window.sevalekhMukhwak`, in `src/mediaBot.ts`). So the robot needs no keys and no copy of SevaLekh's data — it sees what any visitor sees.
+1. A headless browser opens `https://sevalekh.com/#/mukhwak` and asks the page for its cards (`window.sevalekhMukhwak`, in `src/mediaBot.ts`). So the robot needs no keys and no copy of SevaLekh's data — it sees what any visitor sees.
 2. It downloads SGPC's recording directly (no browser, so SGPC's CORS block doesn't matter).
 3. ffmpeg turns cards + audio into the videos. Whole-MukhWak videos: the first card stays 25 s and there's no closing card (the recording is still playing; players loop). The 1-minute and 90-second ones keep the closing card. Videos are encoded three at a time with x264's `veryfast` preset (still pictures don't gain from slower presets), so a run of 32 videos (4 kinds × 2 sizes × 4 languages) takes a few minutes.
 4. The workflow publishes the result on GitHub Pages, replacing yesterday's.

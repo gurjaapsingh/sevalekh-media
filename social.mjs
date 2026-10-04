@@ -114,7 +114,7 @@ async function youtube() {
   const [yy, mm, dd] = String(ix.date || '').split('-');   // "2026-10-04"
   const dateText = dd ? `${Number(dd)}-${Number(mm)}-${yy}` : '';
   const title = `ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ ${dateText} · ਸ੍ਰੀ ਦਰਬਾਰ ਸਾਹਿਬ, ਅੰਮ੍ਰਿਤਸਰ · MukhWak${v.seconds <= 180 ? ' #Shorts' : ''}`.slice(0, 100);
-  const description = `${caption}\n\n📖 ਅਰਥਾਂ ਸਮੇਤ ਪੜ੍ਹੋ · Read with meanings: https://granth.web.app/#/mukhwak\n🎵 ਆਡੀਓ: SGPC, ਸ੍ਰੀ ਦਰਬਾਰ ਸਾਹਿਬ`.slice(0, 4900);
+  const description = `${caption}\n\n📖 ਅਰਥਾਂ ਸਮੇਤ ਪੜ੍ਹੋ · Read with meanings: https://sevalekh.com/#/mukhwak\n🎵 ਆਡੀਓ: SGPC, ਸ੍ਰੀ ਦਰਬਾਰ ਸਾਹਿਬ`.slice(0, 4900);
   const meta = {
     snippet: { title, description, categoryId: process.env.YT_CATEGORY || '22', defaultLanguage: 'pa', defaultAudioLanguage: 'pa', tags: ['MukhWak', 'Hukamnama', 'Gurbani', 'SevaLekh'] },
     status: { privacyStatus: process.env.YT_PRIVACY || 'public', selfDeclaredMadeForKids: false },
