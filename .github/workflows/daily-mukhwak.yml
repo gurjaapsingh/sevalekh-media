@@ -22,7 +22,7 @@ on:
         type: boolean
         default: false
       post:
-        description: 'Also post to Telegram (if set up — see SOCIAL-AUTOPOST.md)'
+        description: 'Also post (Telegram, Instagram, YouTube — whichever are set up)'
         type: boolean
         default: false
 
@@ -58,6 +58,7 @@ jobs:
     timeout-minutes: 40
     outputs:
       skip: ${{ steps.make.outputs.skip }}
+      made: ${{ steps.make.outputs.made }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -102,3 +103,32 @@ jobs:
     steps:
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # 📣 Instagram Reel + YouTube Short, once the files are live on Pages (Instagram
+  # fetches the video from there). Each runs only if its secrets are set —
+  # SETUP-YOUTUBE-INSTAGRAM.md. Same rule as Telegram: the morning's first build
+  # on a schedule, or a manual run with "post" ticked.
+  social:
+    needs: [check, build, deploy]
+    if: needs.deploy.result == 'success' && ((github.event_name == 'schedule' && needs.check.outputs.reason == 'new') || inputs.post)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node social.mjs
+        env:
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          MADE: ${{ needs.build.outputs.made }}
+          SOCIAL_LANG: ${{ vars.SOCIAL_LANG || 'pa' }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ vars.IG_USER_ID || '' }}
+          IG_API_HOST: ${{ vars.IG_API_HOST || 'graph.instagram.com' }}
+          IG_VIDEO: ${{ vars.IG_VIDEO || 'reel' }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_VIDEO: ${{ vars.YT_VIDEO || 'fit' }}
+          YT_PRIVACY: ${{ vars.YT_PRIVACY || 'public' }}

@@ -302,6 +302,7 @@ await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="
 <h1>ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ · ${day} · ਅੰਗ ${info.ang}</h1><p><a href="${APP}/#/mukhwak">${APP.replace(/^https?:\/\//, '')}</a></p>${links}</body>`);
 await fs.writeFile(path.join(OUT, '.nojekyll'), '');
 await output('skip', 'false');
+await output('made', index.made);
 
 // ── 5. Telegram channel (optional) ──
 // Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (@channel or -100…); variables
