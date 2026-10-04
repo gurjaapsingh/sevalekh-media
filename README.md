@@ -24,6 +24,8 @@ What it makes, for each language in `LANGS` (default `pa,en,hi`):
 
 A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 12:45 India time (17:45–01:15 the evening before in Edmonton). The slow build starts only once BaniDB has today's MukhWak, SGPC's audio is up, and today's isn't published yet — so early checks just wait instead of failing. GitHub often starts scheduled runs late or skips slots when it's busy; many cheap checks make the morning video dependable.
 
+**Edited meanings:** the check also runs hourly for the rest of India's day. If meanings of today's MukhWak were edited or approved after the morning's run, it makes everything again (without posting to Telegram again). It notices changes by a fingerprint of the approved entries (`fingerprint.mjs`, Firestore's public API — no key).
+
 ## Set up (about 10 minutes, once)
 
 1. On GitHub, create a **new public repository**, e.g. `sevalekh-media`.

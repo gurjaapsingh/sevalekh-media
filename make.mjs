@@ -22,6 +22,7 @@ import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
 
 const APP = (process.env.APP_URL || 'https://granth.web.app').replace(/\/+$/, '');
 const LANGS = (process.env.LANGS || 'pa,en,hi').split(',').map((s) => s.trim()).filter(Boolean);
@@ -141,7 +142,10 @@ log(`Audio: ${audioSec.toFixed(1)} s`);
 // Lengths asked of the page, in seconds of the RECORDING: the chops' audio span, and the whole.
 const chopKeys = Object.keys(CHOPS).filter((k) => CHOPS[k] * CHOP_SPEED < audioSec);
 const totals = [...chopKeys.map((k) => CHOPS[k] * CHOP_SPEED), audioSec];
-const index = { date: day, ang: info.ang, made: new Date().toISOString(), langs: {} };
+// Today's approved meanings, fingerprinted: the quick check makes everything
+// again later in the day if they change (an edit or a new approval).
+const fingerprint = await meaningsFingerprint(await mukhwakAngs(info.date.year, info.date.month, info.date.day));
+const index = { date: day, ang: info.ang, made: new Date().toISOString(), fingerprint, langs: {} };
 
 /** Plan timings scaled into a video `speed` times faster. */
 const scale = (plan, speed) => plan.map((p) => ({ ...p, start: p.start / speed, end: p.end / speed }));

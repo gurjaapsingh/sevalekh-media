@@ -12,6 +12,9 @@ on:
     - cron: '45 23 * * *'          # 05:15 India
     - cron: '*/15 0-6 * * *'       # 05:30–12:45 India
     - cron: '7,22,37,52 0-3 * * *' # extra slots off the busy quarter-hours
+    # The rest of India's day, hourly: remakes the media if today's meanings
+    # were edited or approved after the morning run (a few seconds otherwise).
+    - cron: '20 7-17 * * *'        # 12:50–23:50 India
   workflow_dispatch:
     inputs:
       force:
@@ -38,6 +41,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       go: ${{ steps.check.outputs.go }}
+      reason: ${{ steps.check.outputs.reason }}
     steps:
       - uses: actions/checkout@v4
       - id: check
@@ -68,10 +72,12 @@ jobs:
           APP_URL: ${{ vars.APP_URL || 'https://granth.web.app' }}
           LANGS: ${{ vars.LANGS || 'pa,en,hi' }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
-          FORCE: ${{ inputs.force && '1' || '' }}
+          # Made again because today's meanings changed: same as a forced run.
+          FORCE: ${{ (inputs.force || needs.check.outputs.reason == 'edited') && '1' || '' }}
           AUDIO_RELAY: ${{ vars.AUDIO_RELAY || '' }}
           # Optional Telegram channel posts (SOCIAL-AUTOPOST.md): scheduled runs, or "post" ticked.
-          POST: ${{ (github.event_name == 'schedule' || inputs.post) && '1' || '' }}
+          # Only the morning's first build posts; a remake after edits doesn't post again.
+          POST: ${{ ((github.event_name == 'schedule' && needs.check.outputs.reason == 'new') || inputs.post) && '1' || '' }}
           # Repository *secrets* (best); repository variables are accepted too.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}

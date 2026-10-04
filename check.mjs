@@ -9,6 +9,7 @@
  * Env: PAGES_URL, FORCE=1 (manual "force" run: always go).
  */
 import fs from 'node:fs/promises';
+import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
 
 const PAGES = (process.env.PAGES_URL || '').replace(/\/+$/, '');
 const out = async (k, v) => { if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
@@ -19,7 +20,7 @@ const y = ist.getUTCFullYear(), m = ist.getUTCMonth() + 1, d = ist.getUTCDate();
 const today = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 say(`India date ${today}, ${ist.toISOString().slice(11, 16)} India time`);
 
-if (process.env.FORCE) { say('Forced run: making them now.'); await out('go', 'true'); process.exit(0); }
+if (process.env.FORCE) { say('Forced run: making them now.'); await out('go', 'true'); await out('reason', 'forced'); process.exit(0); }
 
 const get = async (url, opts = {}) => {
   try { return await fetch(url, { signal: AbortSignal.timeout(20_000), ...opts }); } catch { return null; }
@@ -29,7 +30,17 @@ const get = async (url, opts = {}) => {
 const pub = await get(`${PAGES}/mukhwak/latest.json`, { cache: 'no-store' });
 if (pub?.ok) {
   const j = await pub.json().catch(() => ({}));
-  if (j.date === today) { say(`Today's are already published (made ${j.made}). Nothing to do.`); await out('go', 'false'); process.exit(0); }
+  if (j.date === today) {
+    // Already made today — but if meanings of today's MukhWak were edited or
+    // approved since, make them again so the pictures and videos show the latest.
+    const now = await meaningsFingerprint(await mukhwakAngs(y, m, d));
+    if (now && j.fingerprint && now !== j.fingerprint) {
+      say(`Meanings changed since this morning's videos (made ${j.made}) — making them again.`);
+      await out('go', 'true'); await out('reason', 'edited'); process.exit(0);
+    }
+    say(`Today's are already published (made ${j.made}), meanings unchanged. Nothing to do.`);
+    await out('go', 'false'); process.exit(0);
+  }
   say(`Published now: ${j.date ?? 'nothing'}.`);
 }
 
@@ -51,3 +62,4 @@ if (!a || !(a.ok || a.status === 206)) {
 
 say('Text and audio are up: making today\'s pictures and videos.');
 await out('go', 'true');
+await out('reason', 'new');
