@@ -307,7 +307,19 @@ await output('skip', 'false');
 // Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (@channel or -100…); variables
 // TELEGRAM_LANG (pa), TELEGRAM_VIDEO (short; may be a list: short,full-x2.5),
 // TELEGRAM_TEXT (1 = also the MukhWak as text, with the audio link; 0 = video only).
-const TG = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+/*
+ * The token as BotFather gives it: 123456789:AA… Pasted tokens often carry
+ * extras — quotes, spaces or line breaks, a "bot" prefix, or the whole
+ * https://api.telegram.org/bot… address — and Telegram then answers only
+ * "Not Found". Clean those off; never print the token itself.
+ */
+function tokenOf(raw) {
+  let s = (raw || '').replace(/\s+/g, '').replace(/^["'`]+|["'`]+$/g, '');
+  s = s.replace(/^https?:\/\/api\.telegram\.org\//i, '').replace(/^bot(?=\d)/i, '').replace(/\/.*$/, '');
+  return s;
+}
+const TG = tokenOf(process.env.TELEGRAM_BOT_TOKEN);
+const TG_SHAPE_OK = /^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(TG);
 /*
  * The channel as Telegram's API wants it: "@name" for a public channel, or the
  * numeric id (-100…) for a private one. People paste all sorts — a t.me link,
@@ -338,6 +350,13 @@ if (process.env.POST === '1' && TG && TG_CHAT) {
 } else if (TG && TG_CHAT) log('Telegram: not posting on this run (manual run without "post" ticked).');
 
 async function postTelegram() {
+  if (!TG_SHAPE_OK) {
+    throw new Error(`the bot token doesn't look like one from BotFather (digits, a colon, then about 35 letters — e.g. 123456789:AAH…; this one is ${TG.length} characters${TG.includes(':') ? '' : ', with no colon'}). In Telegram open @BotFather → /mybots → your bot → API Token, copy it, and paste it as the repository secret again`);
+  }
+  // Who are we? A clear answer before posting anything.
+  const me = await fetch(`https://api.telegram.org/bot${TG}/getMe`).then((r) => r.json()).catch(() => ({}));
+  if (!me.ok) throw new Error(`Telegram doesn't accept the bot token (${me.description || 'no answer'}) — copy it again from @BotFather → /mybots → API Token`);
+  log(`Telegram: bot @${me.result?.username}`);
   const lang = (process.env.TELEGRAM_LANG || LANGS[0] || 'pa').trim();
   const e = index.langs[lang];
   if (!e) throw new Error(`no media in "${lang}" today`);
