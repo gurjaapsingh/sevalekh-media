@@ -13,8 +13,9 @@ const RUN_QUERY = `https://firestore.googleapis.com/v1/projects/${PROJECT}/datab
 
 /** The Angs today's MukhWak spans (a Shabad can run onto the next Ang). */
 export async function mukhwakAngs(y, m, d) {
-  const r = await fetch(`https://api.banidb.com/v2/hukamnamas/${y}/${m}/${d}`, { signal: AbortSignal.timeout(20_000) });
-  const j = r.ok ? await r.json() : null;
+  // Never fails: no answer just means no fingerprint (the robot still makes everything).
+  const r = await fetch(`https://api.banidb.com/v2/hukamnamas/${y}/${m}/${d}`, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+  const j = r?.ok ? await r.json().catch(() => null) : null;
   const angs = new Set();
   for (const s of j?.shabads ?? []) {
     if (s?.shabadInfo?.pageNo) angs.add(s.shabadInfo.pageNo);

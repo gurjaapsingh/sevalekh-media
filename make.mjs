@@ -19,7 +19,7 @@
  * post to Telegram (scheduled runs, or "post" ticked on a manual run).
  */
 import { chromium } from 'playwright';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
@@ -32,7 +32,10 @@ const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
 // Chopped videos: the first 1 and 2 minutes, at the Admin's chop speed (1.5× by default).
-const CHOPS = { short: 60, reel: 90, medium: 120 };   // 90 s: Instagram / Facebook Reels' classic limit
+// The start of the MukhWak: 1 minute (Shorts, TikTok, status) and 90 s (Reels' classic limit).
+const CHOPS = { short: 60, reel: 90 };
+// ffmpeg jobs at once — GitHub's runners have 4 cores.
+const PARALLEL = 3;
 // "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
 const FIT_SECONDS = 179;   // 2:59 — safely under YouTube Shorts' 3 minutes
 // Full videos (and those made from them): the title card stays 25 s, and there is no
@@ -91,11 +94,11 @@ const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${Str
 log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join(', ')}`);
 // Admin → 2 · MukhWak → What the robot makes
 const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
-const SPEEDS = (info.bot.speeds || []).map(Number).filter((x) => x > 1 && x <= 4);
+// Four videos per size and language: 1 min, 90 s, the whole MukhWak, and the whole in 2:59.
 const CHOP_SPEED = [1, 1.25, 1.5, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.5;
 const FIT = info.bot.fit !== false;                 // default on
 const POST_VIDEOS = info.bot.postVideos !== false;  // 4:5 videos too (default on)
-log(`Full video ${FULL_RES}p; 1/2-min videos at ×${CHOP_SPEED}; fit-to-3-min ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}; extra speeds: ${SPEEDS.length ? SPEEDS.map((x) => '×' + x).join(', ') : 'none'}`);
+log(`Full video ${FULL_RES}p; 1-min and 90-s videos at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -165,6 +168,7 @@ function fullPlan(plan, T) {
 }
 
 const texts = {};   // lang → the MukhWak as text messages, for Telegram
+const videoJobs = [];   // ffmpeg work, run after all the pictures are drawn
 for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
   const entry = { caption: await page.evaluate((c) => window.sevalekhMukhwak.caption(c), lang) };
   texts[lang] = await page.evaluate((c) => (window.sevalekhMukhwak.parts ? window.sevalekhMukhwak.parts(c) : []), lang);
@@ -206,35 +210,43 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
     if (fmt === 'post' && !POST_VIDEOS) continue;
     const videos = entry[fmt].videos = {};
     const tag = fmt === 'story' ? '' : '-4x5';
-    const make = async (key, plan, T, speed, long) => {
+    // Queued now, made all together after the pictures (several at once — see PARALLEL).
+    const make = (key, plan, T, speed, long) => videoJobs.push(async () => {
       const file = `${lang}/video${tag}-${key}.mp4`;
       const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: long ? FULL_RES : 1080, long, speed });
       videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
       log(`${lang} ${fmt} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
-    };
-    // 1- and 2-minute videos: the start of the MukhWak, at the chop speed (with the closing card).
+    });
+    // 1 minute and 90 s: the start of the MukhWak, at the chop speed (with the closing card).
     for (let i = 0; i < chopKeys.length; i++) {
       const k = chopKeys[i];
-      await make(k, scale(res.plans[i], CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
+      make(k, scale(res.plans[i], CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
     }
     // The whole MukhWak at normal speed.
     const full = fullPlan(res.plans[res.plans.length - 1], audioSec);
-    await make('full', full, audioSec, 1, audioSec > 200);
+    make('full', full, audioSec, 1, audioSec > 200);
     // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
     if (FIT && audioSec > FIT_SECONDS) {
       const sp = Math.ceil((audioSec / FIT_SECONDS) * 100) / 100;
-      await make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
+      make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
     }
-    // Extra speeds ticked in Admin.
-    for (const sp of SPEEDS) await make(`full-x${sp}`, scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
   }
   index.langs[lang] = entry;
 }
 await browser.close();
 
+// ── The videos: several ffmpeg runs at once ──
+{
+  const t0 = Date.now();
+  let next = 0;
+  const worker = async () => { while (next < videoJobs.length) await videoJobs[next++](); };
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, videoJobs.length) }, worker));
+  log(`${videoJobs.length} videos in ${Math.round((Date.now() - t0) / 1000)} s`);
+}
+
 /** Slideshow + audio with ffmpeg; made again smaller if it comes out too big to share. */
 async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false, speed = 1 } = {}) {
-  const list = path.resolve('list.txt');
+  const list = `${out}.txt`;   // one list per video: several are made at once
   const lines = [];
   for (const p of plan) {
     lines.push(`file '${path.join(DIR, images[p.card]).replace(/'/g, "'\\''")}'`, `duration ${Math.max(0.1, p.end - p.start).toFixed(3)}`);
@@ -248,26 +260,35 @@ async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false,
   for (let left = speed; left > 1.0001;) { const f = Math.min(2, left); tempo.push(`atempo=${f.toFixed(4)}`); left /= f; }
   for (let attempt = 0; attempt < 3; attempt++) {
     const maxrate = Math.max(100_000, Math.round((LIMIT * 8 * 0.85) / T - 96_000));
-    execFileSync('ffmpeg', [
+    await ffmpeg([
       '-y', '-loglevel', 'error',
       '-f', 'concat', '-safe', '0', '-i', list,
       '-i', audioPath,
       '-t', T.toFixed(2),
       '-map', '0:v', '-map', '1:a',
       '-vf', `scale=${width}:-2:flags=lanczos,fps=${fps},format=yuv420p`,
-      '-c:v', 'libx264', '-preset', 'medium', '-tune', 'stillimage', '-crf', String(crf),
+      // veryfast: still pictures gain little from slower presets, and it's several times quicker.
+      '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'stillimage', '-crf', String(crf),
       '-maxrate', String(maxrate), '-bufsize', String(maxrate * 2),
       '-c:a', 'aac', '-b:a', '96k',
       '-af', [...tempo, `afade=t=out:st=${Math.max(0, T - fade).toFixed(2)}:d=${fade.toFixed(2)}`].join(','),
       '-movflags', '+faststart',
       out,
-    ], { stdio: 'inherit' });
+    ]);
     const { size } = await fs.stat(out);
-    if (size <= LIMIT) return size;
+    if (size <= LIMIT) { await fs.rm(list, { force: true }); return size; }
     log(`${path.basename(out)} is ${(size / 1e6).toFixed(1)} MB — making it smaller`);
     width = Math.min(width, 540); crf += 4; fps = Math.min(fps, 4);
   }
+  await fs.rm(list, { force: true });
   return (await fs.stat(out)).size;
+}
+
+/** ffmpeg without blocking, so several can run at once. */
+function ffmpeg(args) {
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', args, { maxBuffer: 1 << 24 }, (err, _out, stderr) => (err ? reject(new Error(`ffmpeg: ${stderr || err.message}`)) : resolve()));
+  });
 }
 
 // ── 4. The index the app reads, and a small page for people ──
