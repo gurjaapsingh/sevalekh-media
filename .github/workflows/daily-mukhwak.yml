@@ -70,7 +70,7 @@ jobs:
         run: node make.mjs
         env:
           APP_URL: ${{ vars.APP_URL || 'https://granth.web.app' }}
-          LANGS: ${{ vars.LANGS || 'pa,en,hi' }}
+          LANGS: ${{ vars.LANGS || 'pa,en,hi,pnb' }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           # Made again because today's meanings changed: same as a forced run.
           FORCE: ${{ (inputs.force || needs.check.outputs.reason == 'edited') && '1' || '' }}

@@ -4,7 +4,7 @@ Every morning (India time) this makes the day's **ਮੁੱਖਵਾਕ pictures
 
 It is **free**: GitHub Actions and GitHub Pages cost nothing for a public repository. Nothing here touches Firebase, so SevaLekh stays on the free Spark plan.
 
-What it makes, for each language in `LANGS` (default `pa,en,hi`):
+What it makes, for each language in `LANGS` (default `pa,en,hi,pnb` — ਪੰਜਾਬੀ, English, हिन्दी, شاہمکھی):
 
 | | |
 |---|---|

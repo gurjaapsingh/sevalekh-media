@@ -25,7 +25,7 @@ import path from 'node:path';
 import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
 
 const APP = (process.env.APP_URL || 'https://granth.web.app').replace(/\/+$/, '');
-const LANGS = (process.env.LANGS || 'pa,en,hi').split(',').map((s) => s.trim()).filter(Boolean);
+const LANGS = (process.env.LANGS || 'pa,en,hi,pnb').split(',').map((s) => s.trim()).filter(Boolean);
 const PAGES = (process.env.PAGES_URL || '').replace(/\/+$/, '');
 const FORCE = !!process.env.FORCE;
 const OUT = path.resolve('site');
