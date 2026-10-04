@@ -5,8 +5,9 @@
  *    (window.sevalekhMukhwak, src/mediaBot.ts) for the cards — the same
  *    pictures phones draw, with SevaLekh's approved vyakhya.
  * 2. Downloads SGPC's recording (no browser here, so no CORS problem).
- * 3. ffmpeg turns the cards + audio into 1-minute, 3-minute and full videos,
- *    each kept under 44 MB so phones can share them.
+ * 3. ffmpeg turns the cards + audio into videos, 9:16 and 4:5: the first 1 and
+ *    2 minutes (at 1.5×), the whole MukhWak, and the whole sped up to fit
+ *    3 minutes — each kept under 44 MB so phones can share them.
  * 4. Writes site/mukhwak/latest.json (read by the app) and the files; the
  *    workflow publishes site/ on GitHub Pages.
  *
@@ -29,7 +30,13 @@ const FORCE = !!process.env.FORCE;
 const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
-const LENGTHS = { short: 60, medium: 180, full: Infinity };
+// Chopped videos: the first 1 and 2 minutes, at the Admin's chop speed (1.5× by default).
+const CHOPS = { short: 60, medium: 120 };
+// "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
+const FIT_SECONDS = 178;
+// Full videos (and those made from them): the title card stays 25 s, and there is no
+// closing card — the recording is still playing there, and players loop to the start.
+const FULL_TITLE = 25;
 
 const log = (...a) => console.log('•', ...a);
 const output = async (k, v) => { if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
@@ -76,7 +83,7 @@ try {
 }
 const info = await page.evaluate(() => {
   const m = window.sevalekhMukhwak;
-  return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl, bot: m.bot || { fullRes: 1080, speeds: [] } };
+  return { date: m.date, ang: m.ang, langs: m.langs, audioUrl: m.audioUrl, bot: m.bot || {} };
 });
 log(`Admin's robot settings as the page sees them: ${JSON.stringify(info.bot)}`);
 const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${String(info.date.day).padStart(2, '0')}`;
@@ -84,7 +91,10 @@ log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join('
 // Admin → 2 · MukhWak → What the robot makes
 const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
 const SPEEDS = (info.bot.speeds || []).map(Number).filter((x) => x > 1 && x <= 4);
-log(`Full video ${FULL_RES}p; sped-up versions: ${SPEEDS.length ? SPEEDS.map((x) => '×' + x).join(', ') : 'none'}`);
+const CHOP_SPEED = [1, 1.25, 1.5, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.5;
+const FIT = info.bot.fit !== false;                 // default on
+const POST_VIDEOS = info.bot.postVideos !== false;  // 4:5 videos too (default on)
+log(`Full video ${FULL_RES}p; 1/2-min videos at ×${CHOP_SPEED}; fit-to-3-min ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}; extra speeds: ${SPEEDS.length ? SPEEDS.map((x) => '×' + x).join(', ') : 'none'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -110,8 +120,27 @@ await fs.writeFile(audioPath, audioBuf);
 const audioSec = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', audioPath]).toString().trim());
 log(`Audio: ${audioSec.toFixed(1)} s`);
 
-const totals = Object.values(LENGTHS).map((s) => Math.min(s, audioSec));
+// Lengths asked of the page, in seconds of the RECORDING: the chops' audio span, and the whole.
+const chopKeys = Object.keys(CHOPS).filter((k) => CHOPS[k] * CHOP_SPEED < audioSec);
+const totals = [...chopKeys.map((k) => CHOPS[k] * CHOP_SPEED), audioSec];
 const index = { date: day, ang: info.ang, made: new Date().toISOString(), langs: {} };
+
+/** Plan timings scaled into a video `speed` times faster. */
+const scale = (plan, speed) => plan.map((p) => ({ ...p, start: p.start / speed, end: p.end / speed }));
+
+/**
+ * The full video's plan with a 25 s title card and no closing card: the body
+ * cards are stretched, in proportion, over everything after the title.
+ */
+function fullPlan(plan, T) {
+  const body = plan.filter((p, i) => i > 0 && i < plan.length - 1);
+  if (!body.length) return plan;
+  const title = Math.min(FULL_TITLE, T * 0.4);
+  const from = body[0].start, to = body[body.length - 1].end;
+  const k = (T - title) / Math.max(1, to - from);
+  return [{ ...plan[0], start: 0, end: title },
+    ...body.map((p) => ({ ...p, start: title + (p.start - from) * k, end: title + (p.end - from) * k }))];
+}
 
 const texts = {};   // lang → the MukhWak as text messages, for Telegram
 for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
@@ -141,31 +170,31 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
       entry.preview = prev;
     }
 
-    // ── 3. Videos (tall format only) ──
-    if (fmt !== 'story') continue;
-    entry.story.videos = {};
-    const names = Object.keys(LENGTHS);
-    for (let k = 0; k < names.length; k++) {
-      const len = names[k];
-      const T = totals[k];
-      if (len !== 'full' && LENGTHS[len] >= audioSec) continue;   // the recording is shorter: “full” covers it
-      const file = `${lang}/video-${len}.mp4`;
-      const bytes = await makeVideo(res.plans[k], images, T, path.join(DIR, file), { width: len === 'full' && T > 200 ? FULL_RES : 1080, long: len === 'full' && T > 200 });
-      entry.story.videos[len] = { file, seconds: Math.round(T), bytes };
-      log(`${lang} ${len}: ${Math.round(T)} s, ${(bytes / 1e6).toFixed(1)} MB`);
+    // ── 3. Videos: 9:16 (Reels, Shorts, TikTok, status) and 4:5 (Instagram / Facebook feed) ──
+    if (fmt === 'post' && !POST_VIDEOS) continue;
+    const videos = entry[fmt].videos = {};
+    const tag = fmt === 'story' ? '' : '-4x5';
+    const make = async (key, plan, T, speed, long) => {
+      const file = `${lang}/video${tag}-${key}.mp4`;
+      const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: long ? FULL_RES : 1080, long, speed });
+      videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
+      log(`${lang} ${fmt} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
+    };
+    // 1- and 2-minute videos: the start of the MukhWak, at the chop speed (with the closing card).
+    for (let i = 0; i < chopKeys.length; i++) {
+      const k = chopKeys[i];
+      await make(k, scale(res.plans[i], CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
     }
-    // Sped-up full videos: the full video's timeline, compressed; the audio
-    // faster at the same pitch (ffmpeg atempo).
-    const fullPlan = res.plans[names.indexOf('full')];
-    for (const sp of SPEEDS) {
-      const T = audioSec / sp;
-      const plan = fullPlan.map((p) => ({ ...p, start: p.start / sp, end: p.end / sp }));
-      const key = `full-x${sp}`;
-      const file = `${lang}/video-${key}.mp4`;
-      const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: T > 200 ? FULL_RES : 1080, long: T > 200, speed: sp });
-      entry.story.videos[key] = { file, seconds: Math.round(T), bytes, speed: sp };
-      log(`${lang} ${key}: ${Math.round(T)} s, ${(bytes / 1e6).toFixed(1)} MB`);
+    // The whole MukhWak at normal speed.
+    const full = fullPlan(res.plans[res.plans.length - 1], audioSec);
+    await make('full', full, audioSec, 1, audioSec > 200);
+    // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
+    if (FIT && audioSec > FIT_SECONDS) {
+      const sp = Math.ceil((audioSec / FIT_SECONDS) * 100) / 100;
+      await make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
     }
+    // Extra speeds ticked in Admin.
+    for (const sp of SPEEDS) await make(`full-x${sp}`, scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
   }
   index.langs[lang] = entry;
 }
@@ -212,7 +241,8 @@ async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false,
 // ── 4. The index the app reads, and a small page for people ──
 await fs.writeFile(path.join(DIR, 'latest.json'), JSON.stringify(index, null, 1));
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
-  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 ${k} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 9:16 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(e.post?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 4:5 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   `<p>${(e.story?.images ?? []).map((f) => `<a href="mukhwak/${f}"><img src="mukhwak/${f}" height="160" loading="lazy"></a>`).join(' ')}</p>`).join('');
 await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>SevaLekh · ਮੁੱਖਵਾਕ ${day}</title><body style="font-family:sans-serif;max-width:60rem;margin:auto;padding:1rem">

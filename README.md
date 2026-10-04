@@ -9,7 +9,8 @@ What it makes, for each language in `LANGS` (default `pa,en,hi`):
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-short.mp4` (1 min), `video-medium.mp4` (3 min), `video-full.mp4` (whole recording, 1080p or 720p), `video-full-x1.5.mp4` … (sped-up, if ticked in Admin) — each under 44 MB |
+| Videos 9:16 | `video-short.mp4` (1 min) and `video-medium.mp4` (2 min) — the start, at 1.5×; `video-full.mp4` (whole recording); `video-fit.mp4` (whole, sped up just enough to fit 3 min); `video-full-x1.5.mp4` … (extra speeds ticked in Admin) — each under 44 MB |
+| Videos 4:5 | the same, named `video-4x5-short.mp4` … (Instagram / Facebook feed; switch in Admin) |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
 
@@ -17,10 +18,10 @@ What it makes, for each language in `LANGS` (default `pa,en,hi`):
 
 1. A headless browser opens `https://granth.web.app/#/mukhwak` and asks the page for its cards (`window.sevalekhMukhwak`, in `src/mediaBot.ts`). So the robot needs no keys and no copy of SevaLekh's data — it sees what any visitor sees.
 2. It downloads SGPC's recording directly (no browser, so SGPC's CORS block doesn't matter).
-3. ffmpeg turns cards + audio into the videos (the first card stays 30 s, as in the app).
+3. ffmpeg turns cards + audio into the videos. Whole-MukhWak videos: the first card stays 25 s and there's no closing card (the recording is still playing; players loop). The 1- and 2-minute ones keep the closing card.
 4. The workflow publishes the result on GitHub Pages, replacing yesterday's.
 
-It runs at 06:15, 08:00 and 10:30 India time; a later run does nothing once today's are published, and a run that's too early (MukhWak or audio not up yet) just fails and waits for the next one.
+A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 12:45 India time (17:45–01:15 the evening before in Edmonton). The slow build starts only once BaniDB has today's MukhWak, SGPC's audio is up, and today's isn't published yet — so early checks just wait instead of failing. GitHub often starts scheduled runs late or skips slots when it's busy; many cheap checks make the morning video dependable.
 
 ## Set up (about 10 minutes, once)
 
@@ -52,7 +53,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 ## Good to know
 
-- **Sped-up videos:** the robot makes exactly the speeds ticked in SevaLekh's Admin (each run's log prints them: *"Admin's robot settings as the page sees them"*). It doesn't choose a speed to fit 3 minutes.
+- **Speeds:** the 1/2-minute videos use the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 178 s); extra speeds are exactly those ticked in Admin. Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).

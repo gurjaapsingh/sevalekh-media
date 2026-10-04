@@ -4,9 +4,14 @@ name: Daily MukhWak media
 
 on:
   schedule:
-    - cron: '45 0 * * *'   # 05:45 India — usually after SGPC posts the MukhWak and its audio
-    - cron: '30 2 * * *'   # 06:15 India — tries again if the first run was too early
-    - cron: '0 5 * * *'    # 06:45 India — last try
+    # A quick check (a few seconds, no installs) every 15 minutes from 05:15 to
+    # 12:45 India time; the slow build runs only once today's text and audio are
+    # up and not yet published. GitHub often starts scheduled runs late or skips
+    # a slot when busy, so many cheap checks make the morning video dependable.
+    # (Edmonton: 17:45–01:15 the evening before, summer time.)
+    - cron: '45 23 * * *'          # 05:15 India
+    - cron: '*/15 0-6 * * *'       # 05:30–12:45 India
+    - cron: '7,22,37,52 0-3 * * *' # extra slots off the busy quarter-hours
   workflow_dispatch:
     inputs:
       force:
@@ -28,7 +33,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: node check.mjs
+        env:
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          FORCE: ${{ inputs.force && '1' || '' }}
+          AUDIO_RELAY: ${{ vars.AUDIO_RELAY || '' }}
+
   build:
+    needs: check
+    if: needs.check.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
@@ -65,7 +86,7 @@ jobs:
 
   deploy:
     needs: build
-    if: needs.build.outputs.skip != 'true'
+    if: needs.build.result == 'success' && needs.build.outputs.skip != 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
