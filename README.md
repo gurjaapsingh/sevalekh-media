@@ -9,8 +9,9 @@ What it makes, for each language in `LANGS` (default `pa,en,hi`):
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-short.mp4` (1 min) and `video-medium.mp4` (2 min) — the start, at 1.5×; `video-full.mp4` (whole recording); `video-fit.mp4` (whole, sped up just enough to fit 3 min); `video-full-x1.5.mp4` … (extra speeds ticked in Admin) — each under 44 MB |
+| Videos 9:16 | `video-short.mp4` (1 min), `video-reel.mp4` (90 s) and `video-medium.mp4` (2 min) — the start, at 1.5×; `video-full.mp4` (whole recording); `video-fit.mp4` (whole, sped up just enough to last 2:59); `video-full-x1.5.mp4` … (extra speeds ticked in Admin) — each under 44 MB |
 | Videos 4:5 | the same, named `video-4x5-short.mp4` … (Instagram / Facebook feed; switch in Admin) |
+| Thumbnails | `thumb.jpg` 1280×720 (YouTube) and `preview.jpg` 1200×630 (link previews): ਮੁੱਖਵਾਕ · date, the opening Gurbani, granth.web.app |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
 
@@ -53,7 +54,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 ## Good to know
 
-- **Speeds:** the 1/2-minute videos use the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 178 s); extra speeds are exactly those ticked in Admin. Each run's log prints the settings it saw.
+- **Speeds:** the 1/2-minute videos use the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s); extra speeds are exactly those ticked in Admin. Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).

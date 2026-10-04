@@ -31,9 +31,9 @@ const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
 // Chopped videos: the first 1 and 2 minutes, at the Admin's chop speed (1.5× by default).
-const CHOPS = { short: 60, medium: 120 };
+const CHOPS = { short: 60, reel: 90, medium: 120 };   // 90 s: Instagram / Facebook Reels' classic limit
 // "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
-const FIT_SECONDS = 178;
+const FIT_SECONDS = 179;   // 2:59 — safely under YouTube Shorts' 3 minutes
 // Full videos (and those made from them): the title card stays 25 s, and there is no
 // closing card — the recording is still playing there, and players loop to the start.
 const FULL_TITLE = 25;
@@ -100,6 +100,24 @@ if (day !== indiaDate() && !FORCE) {
   process.exit(1);
 }
 
+// SGPC's own Nanakshahi date from its MukhWak page ("੧੮ ਅੱਸੂ (ਸੰਮਤ ੫੫੮ ਨਾਨਕਸ਼ਾਹੀ)"),
+// handed to the page so the pictures carry exactly SGPC's date.
+try {
+  const r = await fetch('https://hs.sgpc.net/index.php', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36' }, signal: AbortSignal.timeout(20_000) });
+  // NFD on both sides: SGPC writes ਸ਼ as ਸ + ਼ (and the like).
+  const t = (await r.text()).normalize('NFD').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const months = ['ਚੇਤ', 'ਵੈਸਾਖ', 'ਜੇਠ', 'ਹਾੜ', 'ਸਾਵਣ', 'ਭਾਦੋਂ', 'ਅੱਸੂ', 'ਕੱਤਕ', 'ਮੱਘਰ', 'ਪੋਹ', 'ਮਾਘ', 'ਫੱਗਣ'].map((m) => m.normalize('NFD'));
+  const num = (x) => Number(x.replace(/[੦-੯]/g, (c) => String('੦੧੨੩੪੫੬੭੮੯'.indexOf(c))));
+  const mm = t.match(new RegExp(`([੦-੯0-9]{1,2})\\s+(${months.join('|')})[^()]{0,20}\\(\\s*${'ਸੰਮਤ'.normalize('NFD')}\\s+([੦-੯0-9]{3})\\s+${'ਨਾਨਕ'.normalize('NFD')}`));
+  // Only when SGPC's page shows the same MukhWak (its Ang matches).
+  const angOk = new RegExp(`${'ਅੰਗ'.normalize('NFD')}:?\\s*${String(info.ang).replace(/[0-9]/g, (c) => '੦੧੨੩੪੫੬੭੮੯'[c])}`).test(t);
+  if (mm && angOk) {
+    const fix = { g: day, day: num(mm[1]), month: months.indexOf(mm[2]), year: num(mm[3]) };
+    await page.evaluate((f) => window.sevalekhMukhwak.setNanakshahi?.(f), fix);
+    log(`Nanakshahi date from SGPC: ${mm[1]} ${mm[2]} (ਸੰਮਤ ${mm[3]})`);
+  } else log('Nanakshahi date: SGPC\'s page didn\'t match today — using SevaLekh\'s own reckoning.');
+} catch (e) { log(`Nanakshahi date: couldn't read SGPC's page (${e.message}) — using SevaLekh's own reckoning.`); }
+
 // ── 2. SGPC's recording ──
 const audioPath = path.resolve('audio.mp3');
 // A normal browser's identity (SGPC's Cloudflare may turn away bare scripts),
@@ -164,9 +182,19 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
     // tall pictures to this shape.
     if (fmt === 'post' && images.length) {
       const prev = `${lang}/preview.jpg`;
-      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(DIR, images[0]), '-filter_complex',
-        '[0]scale=1200:630:force_original_aspect_ratio=increase,crop=1200:630,boxblur=30:2,eq=brightness=-0.06[bg];' +
-        '[0]scale=-2:630[fg];[bg][fg]overlay=(W-w)/2:0', '-q:v', '3', path.join(DIR, prev)]);
+      const hasWide = await page.evaluate(() => typeof window.sevalekhMukhwak.wide === 'function');
+      if (hasWide) {
+        // Drawn by the page itself: "ਮੁੱਖਵਾਕ · date", the opening Gurbani, granth.web.app.
+        const save = async (name, w, h) => fs.writeFile(path.join(DIR, name),
+          Buffer.from((await page.evaluate(([c, ww, hh]) => window.sevalekhMukhwak.wide(c, ww, hh), [lang, w, h])).split(',')[1], 'base64'));
+        await save(prev, 1200, 630);
+        await save(`${lang}/thumb.jpg`, 1280, 720);      // YouTube video thumbnail
+        entry.thumb = `${lang}/thumb.jpg`;
+      } else {
+        execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(DIR, images[0]), '-filter_complex',
+          '[0]scale=1200:630:force_original_aspect_ratio=increase,crop=1200:630,boxblur=30:2,eq=brightness=-0.06[bg];' +
+          '[0]scale=-2:630[fg];[bg][fg]overlay=(W-w)/2:0', '-q:v', '3', path.join(DIR, prev)]);
+      }
       entry.preview = prev;
     }
 
