@@ -23,6 +23,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
+import { writeSnapshot } from './snapshot.mjs';
 
 const APP = (process.env.APP_URL || 'https://granth.web.app').replace(/\/+$/, '');
 const LANGS = (process.env.LANGS || 'pa,en,pnb,hi').split(',').map((s) => s.trim()).filter(Boolean);
@@ -294,6 +295,10 @@ function ffmpeg(args) {
 
 // ── 4. The index the app reads, and a small page for people ──
 await fs.writeFile(path.join(DIR, 'latest.json'), JSON.stringify(index, null, 1));
+
+// 📚 Visitors' copy of SevaLekh's approved meanings and dictionary (snapshot.mjs) —
+// saves the free plan's database reads. Never stops the media if it fails.
+await writeSnapshot(OUT, log);
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
   Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 9:16 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   Object.entries(e.post?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 4:5 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +

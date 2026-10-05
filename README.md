@@ -26,6 +26,8 @@ A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 1
 
 **Edited meanings:** the check also runs hourly for the rest of India's day. If meanings of today's MukhWak were edited or approved after the morning's run, it makes everything again (without posting to Telegram again). It notices changes by a fingerprint of the approved entries (`fingerprint.mjs`, Firestore's public API — no key).
 
+**Visitors' copy (`snapshot.mjs`):** each build also writes `data/approved.json` and `data/definitions.json` — every approved meaning and Shabadkosh definition, without volunteers' account ids or edit history. SevaLekh's public view and public dictionary load these instead of reading each entry from the database, which keeps Firebase's free plan (50,000 reads a day) from running out. The Ang a visitor opens is still read live.
+
 ## Set up (about 10 minutes, once)
 
 1. On GitHub, create a **new public repository**, e.g. `sevalekh-media`.
