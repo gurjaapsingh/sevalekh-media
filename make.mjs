@@ -167,11 +167,12 @@ function fullPlan(plan, T) {
     ...body.map((p) => ({ ...p, start: title + (p.start - from) * k, end: title + (p.end - from) * k }))];
 }
 
-const texts = {};   // lang → the MukhWak as text messages, for Telegram
+const texts = {};   // lang → the MukhWak's Gurbani as text messages (no meanings / pad arth / audio link), for Telegram
 const videoJobs = [];   // ffmpeg work, run after all the pictures are drawn
 for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
   const entry = { caption: await page.evaluate((c) => window.sevalekhMukhwak.caption(c), lang) };
-  texts[lang] = await page.evaluate((c) => (window.sevalekhMukhwak.parts ? window.sevalekhMukhwak.parts(c) : []), lang);
+  // Gurbani only + SevaLekh's link. (A SevaLekh deployed before this hook existed has none — then no text is sent.)
+  texts[lang] = await page.evaluate((c) => (window.sevalekhMukhwak.gurbani ? window.sevalekhMukhwak.gurbani(c) : []), lang);
   await fs.mkdir(path.join(DIR, lang), { recursive: true });
 
   for (const fmt of ['story', 'post']) {
@@ -306,8 +307,10 @@ await output('made', index.made);
 
 // ── 5. Telegram channel (optional) ──
 // Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (@channel or -100…); variables
-// TELEGRAM_LANG (pa), TELEGRAM_VIDEO (short; may be a list: short,full-x2.5),
-// TELEGRAM_TEXT (1 = also the MukhWak as text, with the audio link; 0 = video only).
+// TELEGRAM_LANG (pa), TELEGRAM_VIDEO (full = the whole MukhWak at normal speed —
+// Telegram's player has its own speed button; may be a list: full,short),
+// TELEGRAM_TEXT (1 = also the MukhWak's Gurbani as text with SevaLekh's link, no
+// meanings, pad arth or audio link; 0 = video only).
 /*
  * The token as BotFather gives it: 123456789:AA… Pasted tokens often carry
  * extras — quotes, spaces or line breaks, a "bot" prefix, or the whole
@@ -373,11 +376,16 @@ async function postTelegram() {
       throw new Error(`${method}: ${d}${hint}`);
     }
   };
-  const keys = (process.env.TELEGRAM_VIDEO || 'short').split(',').map((k) => k.trim()).filter(Boolean);
+  const keys = (process.env.TELEGRAM_VIDEO || 'full').split(',').map((k) => k.trim()).filter(Boolean);
   let first = true;
   for (const k of keys) {
     const v = e.story?.videos?.[k] ?? (k === 'short' || k === 'medium' ? e.story?.videos?.full : undefined);
     if (!v) { console.warn(`Telegram: no "${k}" video today`); continue; }
+    // Bots can upload up to 50 MB. A full MukhWak is usually ~5 MB; just in case, fall back to the 3-minute one.
+    if (v.bytes > 49e6 && e.story?.videos?.fit && k !== 'fit') {
+      console.warn(`::warning::Telegram: the ${k} video is ${(v.bytes / 1e6).toFixed(0)} MB (bots may send up to 50 MB) — sending the 3-minute one instead.`);
+      keys.push('fit'); continue;
+    }
     const f = new FormData();
     f.append('chat_id', TG_CHAT);
     f.append('video', new Blob([await fs.readFile(path.join(DIR, v.file))], { type: 'video/mp4' }), path.basename(v.file));
@@ -396,7 +404,8 @@ async function postTelegram() {
       f.append('chat_id', TG_CHAT); f.append('text', t);
       await call('sendMessage', f);
     }
-    if (texts[lang]?.length) log(`Telegram: sent the MukhWak text in ${texts[lang].length} message(s)`);
+    if (texts[lang]?.length) log(`Telegram: sent the MukhWak's Gurbani in ${texts[lang].length} message(s)`);
+    else console.warn('Telegram: no Gurbani text today (deploy the latest SevaLekh — it adds the robot\'s gurbani hook).');
   }
 }
 log('Done.');
