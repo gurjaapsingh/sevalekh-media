@@ -39,7 +39,7 @@ Development mode; Meta's App Review is only for posting on other people's accoun
 7. **Permissions check:** the token must include `instagram_business_basic` and
    `instagram_business_content_publish` (the default for this use case).
 
-Optional variables (Variables tab): `IG_VIDEO` (`reel` default; `short` = 1 min), `SOCIAL_LANG` (`pa`).
+Optional variables (Variables tab): `IG_VIDEO` (`reel` = 90 s, default; `full`, `fit`), `SOCIAL_LANG` (`pa`).
 
 Official: https://developers.facebook.com/docs/instagram-platform/content-publishing
 

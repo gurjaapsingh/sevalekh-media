@@ -1,6 +1,6 @@
 # 📣 Posting the daily MukhWak to social media automatically
 
-Every morning the robot (`make.mjs`) makes the day's MukhWak **pictures, 1-min / 3-min / full videos and sped-up full videos**, plus the **caption** (no audio link) and the **text messages** (with SGPC's audio link). This guide covers how to get those onto each platform without doing it by hand, or with as little hand work as possible.
+Every morning the robot (`make.mjs`) makes the day's MukhWak **pictures, 90-s / 3-min / full videos and sped-up full videos**, plus the **caption** (no audio link) and the **text messages** (with SGPC's audio link). This guide covers how to get those onto each platform without doing it by hand, or with as little hand work as possible.
 
 *Checked October 2026. These platforms change their rules often, so if a step doesn't match what you see, follow the official page linked in that section.*
 
@@ -44,7 +44,7 @@ The robot already does this. It uploads the **video file itself** to your channe
    - `TELEGRAM_CHAT_ID` = `@yourchannelname` or `-100…`
 5. Optional **Variables**:
    - `TELEGRAM_LANG` = `pa` (default: the first of `LANGS`)
-   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,short`. Keys: `full`, `fit` (3 min), `reel` (90 s), `short` (1 min).
+   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,reel`. Keys: `full`, `fit` (3 min), `reel` (90 s). (`short` still works and sends the 90-s one.)
    - `TELEGRAM_TEXT` = `0` to post the video only (default `1`: the video, then the MukhWak's Gurbani as text with SevaLekh's link — no meanings, pad arth or audio link)
 6. Test: **Actions → Daily MukhWak media → Run workflow →** tick **force** and **post**. The log ends with `Telegram: sent pa full video` and `Telegram: sent the MukhWak's Gurbani in 1 message(s)`.
 
@@ -74,7 +74,7 @@ You don't need Meta's **App Review** to post to **your own** Page and Instagram.
 
 ### 2b. What the robot would call
 
-The video must be at a **public URL**. The robot's GitHub Pages files are public: `https://<you>.github.io/sevalekh-media/mukhwak/pa/video-short.mp4`. Meta fetches the file itself, and nobody sees that address.
+The video must be at a **public URL**. The robot's GitHub Pages files are public: `https://<you>.github.io/sevalekh-media/mukhwak/pa/video-reel.mp4`. Meta fetches the file itself, and nobody sees that address.
 
 **Facebook Page video / Reel**
 ```
@@ -91,14 +91,14 @@ POST https://graph.facebook.com/v23.0/{FB_PAGE_ID}/videos
 2) GET  /{container-id}?fields=status_code      (repeat every ~10 s until FINISHED)
 3) POST /{IG_USER_ID}/media_publish  creation_id=<container id>
 ```
-- The Reels tab needs **9:16, 5–90 seconds, H.264**. The robot's videos are 9:16 H.264, so use the **1-minute** video. 3-minute and full videos still post, as ordinary video posts.
+- The Reels tab needs **9:16, 5–90 seconds, H.264**. The robot's videos are 9:16 H.264, so use the **90-second** video (`reel`). 3-minute and full videos still post, as ordinary video posts.
 - Limit: 50 API posts per 24 h per account.
 - Instagram **picture carousels** work the same way (`image_url` per picture, `is_carousel_item=true`, then a `CAROUSEL` container), using `post-01.jpg …` (4:5).
 
 **Robot step:** once the secrets exist, the robot's Telegram section can be copied into a `postMeta()` step with these calls. Ask Claude to "add Facebook + Instagram posting to make.mjs". It runs after the Pages deploy, because Meta must be able to download the file. So it goes in a third workflow job (`needs: deploy`), not in `build`.
 
 ### 2c. No-code alternative
-**Meta Business Suite** (business.facebook.com → *Planner*) can schedule Facebook + Instagram posts for days ahead, by hand, from a phone or computer. Downloading the 1-min video from the 🖼/🎬 panel and scheduling it takes about a minute.
+**Meta Business Suite** (business.facebook.com → *Planner*) can schedule Facebook + Instagram posts for days ahead, by hand, from a phone or computer. Downloading the 90-s video from the 🖼/🎬 panel and scheduling it takes about a minute.
 
 ---
 
@@ -118,7 +118,7 @@ POST https://graph.facebook.com/v23.0/{FB_PAGE_ID}/videos
 ### 3b. What the robot would call
 - Exchange the refresh token: `POST https://oauth2.googleapis.com/token` (grant_type=refresh_token) → access token.
 - Resumable upload: `POST https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status` with title, description (the caption), `categoryId: 29` (Nonprofits & Activism) or `22`, `privacyStatus: public`, `selfDeclaredMadeForKids: false`. Then PUT the mp4 bytes.
-- **Shorts**: a 9:16 video **up to 3 minutes** becomes a Short automatically. Use `short`, `medium` (exactly 3:00), or a sped-up full video that is under 3:00 (e.g. ×2.5 for a 7-minute MukhWak). Adding `#Shorts` to the title helps.
+- **Shorts**: a 9:16 video **up to 3 minutes** becomes a Short automatically. Use `reel`, `fit` (the whole in 2:59), or a sped-up full video that is under 3:00 (e.g. ×2.5 for a 7-minute MukhWak). Adding `#Shorts` to the title helps.
 - Quota: each upload uses part of the default 10,000 units/day. A few uploads a day fit easily.
 
 ### 3c. Until the audit passes
@@ -167,7 +167,7 @@ The recording is SGPC's. YouTube's Content ID may flag it, and a channel that re
 If keeping tokens alive becomes a chore, these services hold the platform connections for you. Several already passed the YouTube/TikTok audits, so public posting works at once:
 
 - **Buffer**, **Publer**, **Metricool**: schedule to Facebook, Instagram, YouTube, TikTok, X, Threads, Bluesky. Free or cheap plans exist. Some accept posts from **RSS** or a **Zapier/Make** step.
-- **Make.com / Zapier / n8n**: a daily scenario reads `https://<you>.github.io/sevalekh-media/mukhwak/latest.json`, takes the `video-short.mp4` URL and the `caption`, and posts through their built-in connectors. n8n can run free on your own computer.
+- **Make.com / Zapier / n8n**: a daily scenario reads `https://<you>.github.io/sevalekh-media/mukhwak/latest.json`, takes the `video-reel.mp4` URL and the `caption`, and posts through their built-in connectors. n8n can run free on your own computer.
 
 Typical flow: *Schedule 07:30 IST → HTTP GET latest.json → (date is today?) → post the video URL plus caption to each network.*
 

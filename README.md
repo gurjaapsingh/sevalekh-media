@@ -9,8 +9,8 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-short.mp4` (1 min) and `video-reel.mp4` (90 s) — the start, at 1.5×; `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
-| Videos 4:5 | the same, named `video-4x5-short.mp4` … (Instagram / Facebook feed; switch in Admin) |
+| Videos 9:16 | `video-reel.mp4` (90 s) — the start, at 1.5× (no 1-minute video: every platform takes 90 s); `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
+| Videos 4:5 | the same, named `video-4x5-reel.mp4` … (Instagram / Facebook feed; switch in Admin) |
 | Thumbnails | `thumb.jpg` 1280×720 (YouTube) and `preview.jpg` 1200×630 (link previews): ਮੁੱਖਵਾਕ · date, the opening Gurbani, granth.web.app |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
@@ -19,7 +19,7 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 
 1. A headless browser opens `https://sevalekh.com/#/mukhwak` and asks the page for its cards (`window.sevalekhMukhwak`, in `src/mediaBot.ts`). So the robot needs no keys and no copy of SevaLekh's data — it sees what any visitor sees.
 2. It downloads SGPC's recording directly (no browser, so SGPC's CORS block doesn't matter).
-3. ffmpeg turns cards + audio into the videos. Whole-MukhWak videos: the first card stays 25 s and there's no closing card (the recording is still playing; players loop). The 1-minute and 90-second ones keep the closing card. Videos are encoded three at a time with x264's `veryfast` preset (still pictures don't gain from slower presets), so a run of 32 videos (4 kinds × 2 sizes × 4 languages) takes a few minutes.
+3. ffmpeg turns cards + audio into the videos. Whole-MukhWak videos: the first card stays 25 s and there's no closing card (the recording is still playing; players loop). The 90-second one keeps the closing card. Videos are encoded three at a time with x264's `veryfast` preset (still pictures don't gain from slower presets), so a run of 24 videos (3 kinds × 2 sizes × 4 languages) takes a few minutes.
 4. The workflow publishes the result on GitHub Pages, replacing yesterday's.
 
 A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 12:45 India time (17:45–01:15 the evening before in Edmonton). The slow build starts only once BaniDB has today's MukhWak, SGPC's audio is up, and today's isn't published yet — so early checks just wait instead of failing. GitHub often starts scheduled runs late or skips slots when it's busy; many cheap checks make the morning video dependable.
@@ -58,7 +58,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 ## Good to know
 
-- **Speeds:** the 1-minute and 90-second videos use the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×). Each run's log prints the settings it saw.
+- **Speeds:** the 90-second video uses the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×). Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).

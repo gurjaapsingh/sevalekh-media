@@ -78,7 +78,7 @@ async function instagram() {
   }
   const user = clean(process.env.IG_USER_ID) || (await api('GET', 'me', { fields: 'user_id,username' })).user_id;
   const v = pick([process.env.IG_VIDEO || 'reel', 'reel', 'short']);
-  if (!v) throw new Error('no reel/short video today');
+  if (!v) throw new Error('no 90-s reel video today');
   if (v.seconds > 90) throw new Error(`the "${v.key}" video is ${v.seconds} s — Instagram's API takes Reels up to 90 s`);
   const c = await api('POST', `${user}/media`, {
     media_type: 'REELS', video_url: fileUrl(v.file), caption: caption.slice(0, 2200), share_to_feed: 'true',

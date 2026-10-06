@@ -32,9 +32,9 @@ const FORCE = !!process.env.FORCE;
 const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
-// Chopped videos: the first 1 and 2 minutes, at the Admin's chop speed (1.5× by default).
-// The start of the MukhWak: 1 minute (Shorts, TikTok, status) and 90 s (Reels' classic limit).
-const CHOPS = { short: 60, reel: 90 };
+// Chopped video: the start of the MukhWak, 90 s at the Admin's chop speed (1.5× by default).
+// Every platform now takes at least 90 s (WhatsApp Status, Reels, Shorts, TikTok, X), so no 1-minute one.
+const CHOPS = { reel: 90 };
 // ffmpeg jobs at once — GitHub's runners have 4 cores.
 const PARALLEL = 3;
 // "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
@@ -95,11 +95,11 @@ const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${Str
 log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join(', ')}`);
 // Admin → 2 · MukhWak → What the robot makes
 const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
-// Four videos per size and language: 1 min, 90 s, the whole MukhWak, and the whole in 2:59.
+// Three videos per size and language: 90 s, the whole MukhWak, and the whole in 2:59.
 const CHOP_SPEED = [1, 1.25, 1.5, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.5;
 const FIT = info.bot.fit !== false;                 // default on
 const POST_VIDEOS = info.bot.postVideos !== false;  // 4:5 videos too (default on)
-log(`Full video ${FULL_RES}p; 1-min and 90-s videos at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}`);
+log(`Full video ${FULL_RES}p; 90-s video at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -219,7 +219,7 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
       videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
       log(`${lang} ${fmt} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
     });
-    // 1 minute and 90 s: the start of the MukhWak, at the chop speed (with the closing card).
+    // 90 s: the start of the MukhWak, at the chop speed (with the closing card).
     for (let i = 0; i < chopKeys.length; i++) {
       const k = chopKeys[i];
       make(k, scale(res.plans[i], CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
@@ -313,7 +313,7 @@ await output('made', index.made);
 // ── 5. Telegram channel (optional) ──
 // Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (@channel or -100…); variables
 // TELEGRAM_LANG (pa), TELEGRAM_VIDEO (full = the whole MukhWak at normal speed —
-// Telegram's player has its own speed button; may be a list: full,short),
+// Telegram's player has its own speed button; may be a list: full,reel),
 // TELEGRAM_TEXT (1 = also the MukhWak's Gurbani as text with SevaLekh's link, no
 // meanings, pad arth or audio link; 0 = video only).
 /*
@@ -384,7 +384,7 @@ async function postTelegram() {
   const keys = (process.env.TELEGRAM_VIDEO || 'full').split(',').map((k) => k.trim()).filter(Boolean);
   let first = true;
   for (const k of keys) {
-    const v = e.story?.videos?.[k] ?? (k === 'short' || k === 'medium' ? e.story?.videos?.full : undefined);
+    const v = e.story?.videos?.[k] ?? (k === 'short' ? e.story?.videos?.reel : undefined) ?? (k === 'short' || k === 'medium' ? e.story?.videos?.full : undefined);
     if (!v) { console.warn(`Telegram: no "${k}" video today`); continue; }
     // Bots can upload up to 50 MB. A full MukhWak is usually ~5 MB; just in case, fall back to the 3-minute one.
     if (v.bytes > 49e6 && e.story?.videos?.fit && k !== 'fit') {
