@@ -45,7 +45,8 @@ const FIT_SECONDS = 179;   // 2:59 — safely under YouTube Shorts' 3 minutes
 // the last verses and the opening again) — at 1×, scaled by the speed. A chopped
 // video keeps these timings and just ends earlier, without the closing card.
 const FULL_TITLE = 25;
-const TAIL = 12;
+// The repeat at the end grows with the MukhWak (Oct 7, 2026: almost a minute of 6:33): ~14%, 12–90 s.
+const tailFor = (T) => Math.min(90, Math.max(12, T * 0.14));
 
 const log = (...a) => console.log('•', ...a);
 const output = async (k, v) => { if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
@@ -191,18 +192,33 @@ function fullPlan(plan, T) {
   const body = plan.filter((p, i) => i > 0 && i < plan.length - 1);
   if (!body.length) return plan;
   const title = Math.min(FULL_TITLE, T * 0.4);
-  const tail = Math.min(TAIL, T * 0.15);
+  const tail = tailFor(T);
   const from = body[0].start, to = body[body.length - 1].end;
   const k = (T - title - tail) / Math.max(1, to - from);
   return [{ ...plan[0], start: 0, end: title },
     ...body.map((p) => ({ ...p, start: title + (p.start - from) * k, end: title + (p.end - from) * k })),
     { ...plan[plan.length - 1], start: T - tail, end: T }];
 }
-/** A chopped video: the same timings, ending at T, without the closing card. */
-function cutPlan(plan, T) {
-  const ps = plan.slice(0, -1).filter((p) => p.start < T - 0.05).map((p) => ({ ...p, end: Math.min(p.end, T) }));
-  ps[ps.length - 1].end = T;
-  return ps;
+/**
+ * A chopped video: the same timings, ending at T on a few seconds of the
+ * closing card. When the cut is close to the whole (≥ 75%), every card of the
+ * Bani still shows — the cards after the title are drawn a little closer.
+ */
+function cutPlan(plan, T, whole) {
+  const closing = plan[plan.length - 1];
+  const limit = Math.max(plan[0].end + 1, T - Math.min(4, T * 0.06));
+  const body = plan.slice(1, -1);
+  const last = body[body.length - 1];
+  let ps;
+  if (last && last.start >= limit - 3 && whole && T >= whole * 0.75) {
+    const from = plan[0].end;
+    const k = (limit - from) / Math.max(1, last.end - from);
+    ps = [plan[0], ...body.map((p) => ({ ...p, start: from + (p.start - from) * k, end: from + (p.end - from) * k }))];
+  } else {
+    ps = plan.slice(0, -1).filter((p) => p.start < limit - 0.05).map((p) => ({ ...p, end: Math.min(p.end, limit) }));
+  }
+  ps[ps.length - 1].end = limit;
+  return [...ps, { ...closing, start: limit, end: T }];
 }
 
 const texts = {};   // lang → the MukhWak's Gurbani as text messages (no meanings / pad arth / audio link), for Telegram
@@ -259,7 +275,7 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
     // The whole MukhWak at normal speed (cards following the recitation).
     const full = fullPlan(res.plans[res.plans.length - 1], audioSec);
     // 90 s: the start of the MukhWak at the chop speed — the same timings, cut off.
-    for (const k of chopKeys) make(k, cutPlan(scale(full, CHOP_SPEED), CHOPS[k]), CHOPS[k], CHOP_SPEED, false);
+    for (const k of chopKeys) make(k, cutPlan(scale(full, CHOP_SPEED), CHOPS[k], audioSec / CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
     make('full', full, audioSec, 1, audioSec > 200);
     // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
     if (FIT && audioSec > FIT_SECONDS) {
