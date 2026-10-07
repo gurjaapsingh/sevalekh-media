@@ -56,6 +56,28 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 - **Telegram channel — built in.** Add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` and every morning's run posts the video file (caption without the audio link) and the MukhWak text (with the audio link) to your channel.
 - Facebook, Instagram, YouTube, WhatsApp, X, TikTok and others: step-by-step in **[SOCIAL-AUTOPOST.md](SOCIAL-AUTOPOST.md)**.
 
+## Karaoke clips (`karaoke-video.mjs`)
+
+A few lines of the paath as a 9:16 clip: the recording's audio, and the Gurbani over it with **each word turning gold as it is recited**. It reads the timing files SevaLekh's `tools/paath-align/align.py` writes (`public/paath/<reciter>/<ang>.json`, `[verseId, recording, lineStart, lineEnd, [wordStart…]]`, seconds into the recording) and cuts the audio with `ffmpeg -ss … -to …`, so the subtitles' `t = 0` is the start of the cut.
+
+```
+node karaoke-video.mjs --align ../sevalekh/public/paath/mehnga-singh --audio D:/paath --verses 18686-18690 --out out/clip.mp4
+```
+
+- `--align` an Ang's file or the reciter's folder (all Angs are searched; `--ang 1-3` narrows it). `--audio` the recording, or the folder holding `<recording>.mp3` — the name the timing file gives. `--verses 5-9` (or one verse id) all from one recording.
+- **Text:** the timing files hold no Gurmukhi. It comes from `--text file.json` (`{"<verseId>": "…"}`), else the cached Ang pages in `--cache-dir` (default `.cache/ang`, the cache SevaLekh's tools fill — point it at `../sevalekh/.cache/ang` to reuse it), else BaniDB (then cached). A line whose words don't match its timings stops the run, naming the verse.
+- Needs **ffmpeg with libass and libx264** and a **font with Gurmukhi** — `apt install fonts-noto-core` gives *Noto Sans Gurmukhi*, the default; `--font` and `--fonts-dir` use another. `--bg solid|gradient`, `--bg-color`, `--bg-color2`, `--font-size`, `--pad-start/--pad-end` (seconds of recording kept either side), `--ass file` keeps the subtitles, `--accurate-seek` for VBR mp3s without a seek table.
+- In ASS the *Primary* colour is what a sung word becomes and *Secondary* what it is until then, so the style is Primary = gold `&H0000D7FF&`, Secondary = white `&H00FFFFFF&`.
+
+**Try it** (makes a stand-in recording with a beep at every word, then a clip of Ang 1's first six lines from the mock timings in `samples/karaoke/`; the demo lands in `out/karaoke-demo.mp4`):
+
+```
+node samples/karaoke/make-mock-audio.mjs samples/karaoke/alignment/1.json out/mock-audio
+node karaoke-video.mjs --align samples/karaoke/alignment --audio out/mock-audio \
+     --text samples/karaoke/text.json --verses 1-6 --out out/karaoke-demo.mp4
+npm run test:karaoke      # the same, with checks on the MP4: audio against the source, colours, when each word lights
+```
+
 ## Good to know
 
 - **Speeds:** the 90-second video uses the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×). Each run's log prints the settings it saw.
