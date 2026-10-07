@@ -31,7 +31,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // ── Look ────────────────────────────────────────────────────────────────────
 export const VIDEO = { width: 1080, height: 1920, fps: 30 };
@@ -43,6 +43,7 @@ export const COLORS = {
   bgBottom: '07080F',
 };
 const STYLE = 'Gurbani';
+const REPO_FONTS = fileURLToPath(new URL('./fonts/', import.meta.url));
 const DEFAULT_FONT = 'Noto Sans Gurmukhi';
 const LEAD_IN = 0.3;   // s a line is shown before its first word, so it can be read ahead
 const HOLD = 0.5;      // s a line stays after its last word (never over the next line)
@@ -375,7 +376,7 @@ const HELP = `Gurbani clip with word-by-word karaoke subtitles (1080×1920 MP4)
   --banidb-url  BaniDB's address (default ${BANIDB})
 
   Look:
-  --font        font family (default ${DEFAULT_FONT});  --fonts-dir  folder with the font file;  --font-size  (default 84)
+  --font        font family (default ${DEFAULT_FONT});  --fonts-dir  folder with the font file (default: this repo's fonts/);  --font-size  (default 84)
   --bg          gradient (default) or solid;  --bg-color  ${COLORS.bgTop} (top / the solid colour);  --bg-color2  ${COLORS.bgBottom} (bottom)
 
   Audio:
@@ -433,7 +434,8 @@ export async function main(argv = process.argv.slice(2)) {
   const t0 = Date.now();
   await renderClip({
     ass, audio, slice, out: o.out, bg: o.bg, bgColor: o['bg-color'], bgColor2: o['bg-color2'],
-    fontsDir: o['fonts-dir'], accurateSeek: o['accurate-seek'],
+    // The repo's own fonts/ (Noto Sans Gurmukhi) unless another folder is given, so no font needs installing.
+    fontsDir: o['fonts-dir'] ?? REPO_FONTS, accurateSeek: o['accurate-seek'],
   });
   log(`${o.out} (${((await fs.stat(o.out)).size / 1e6).toFixed(1)} MB, ${Math.round((Date.now() - t0) / 100) / 10} s)`);
 }
