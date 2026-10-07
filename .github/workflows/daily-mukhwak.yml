@@ -4,12 +4,14 @@ name: Daily MukhWak media
 
 on:
   schedule:
-    # A quick check (a few seconds, no installs) every 15 minutes from 05:15 to
-    # 12:45 India time; the slow build runs only once today's text and audio are
-    # up and not yet published. GitHub often starts scheduled runs late or skips
-    # a slot when busy, so many cheap checks make the morning video dependable.
-    # (Edmonton: 17:45–01:15 the evening before, summer time.)
-    - cron: '45 23 * * *'          # 05:15 India
+    # A quick check (a few seconds, no installs) every ~10 minutes from 03:37 India
+    # time — SGPC puts the MukhWak up in the early morning (Oct 7: before 06:00) —
+    # then every 15 minutes to 12:45; the slow build runs only once today's text
+    # and audio are up and not yet published. GitHub often starts scheduled runs
+    # late or skips a slot when busy (worst on the hour), so many cheap checks,
+    # mostly off the round minutes, make the morning video dependable.
+    # (Edmonton: 16:07 the evening before onward, standard time.)
+    - cron: '7,17,27,37,47,57 22-23 * * *'  # 03:37–05:27 India
     - cron: '*/15 0-6 * * *'       # 05:30–12:45 India
     - cron: '7,22,37,52 0-3 * * *' # extra slots off the busy quarter-hours
     # The rest of India's day, hourly: remakes the media if today's meanings
