@@ -3,7 +3,7 @@
  *
  * Runs every 15 minutes through India's morning with no installs, in a few
  * seconds. Says "go" only when today's (India time) MukhWak isn't published
- * yet AND both BaniDB's text and SGPC's audio for today are up — so early
+ * yet AND today's text (BaniDB, or SGPC's page while BaniDB lags) and SGPC's audio are up — so early
  * runs simply wait, instead of failing in red.
  *
  * Env: PAGES_URL, FORCE=1 (manual "force" run: always go).
@@ -47,7 +47,13 @@ if (pub?.ok) {
 // 2. BaniDB has today's MukhWak?
 const b = await get(`https://api.banidb.com/v2/hukamnamas/${y}/${m}/${d}`);
 const bj = b?.ok ? await b.json().catch(() => null) : null;
-if (!bj?.shabads?.length) { say(`BaniDB doesn't have ${today}'s MukhWak yet — waiting for the next check.`); await out('go', 'false'); process.exit(0); }
+if (!bj?.shabads?.length) {
+  // BaniDB can lag SGPC by hours: read today's from SGPC's own page instead (sgpc.mjs).
+  const { sgpcMukhwak } = await import('./sgpc.mjs');
+  const s = await sgpcMukhwak(today).catch((e) => ({ error: e.message }));
+  if (s.error) { say(`BaniDB doesn't have ${today}'s MukhWak yet, nor SGPC's page (${s.error}) — waiting for the next check.`); await out('go', 'false'); process.exit(0); }
+  say(`BaniDB doesn't have ${today}'s MukhWak yet — SGPC's page does (Ang ${s.sgpc.ang}, shabads ${s.shabadIds.join(', ')}).`);
+}
 
 // 3. SGPC's recording for today is up?
 const two = (n) => String(n % 100).padStart(2, '0');

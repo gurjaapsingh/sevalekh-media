@@ -24,6 +24,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
 import { writeSnapshot } from './snapshot.mjs';
+import { sgpcMukhwak } from './sgpc.mjs';
 
 const APP = (process.env.APP_URL || 'https://granth.web.app').replace(/\/+$/, '');
 const LANGS = (process.env.LANGS || 'pa,en,pnb,hi').split(',').map((s) => s.trim()).filter(Boolean);
@@ -72,6 +73,27 @@ await fs.mkdir(DIR, { recursive: true });
 // ── 1. The cards, from SevaLekh itself ──
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 900, height: 1400 }, deviceScaleFactor: 1 });
+// BaniDB's /hukamnamas can lag SGPC by hours. When it hasn't today's yet but
+// SGPC's page has, SevaLekh's page is answered with today's MukhWak read from
+// SGPC (sgpc.mjs) in BaniDB's own shape — the page itself doesn't change.
+let sgpcSpec = null;
+{
+  const [y, m, d] = indiaDate().split('-').map(Number);
+  const b = await fetch(`https://api.banidb.com/v2/hukamnamas/${y}/${m}/${d}`, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+  const bj = b?.ok ? await b.json().catch(() => null) : null;
+  if (!bj?.shabads?.length) {
+    const s = await sgpcMukhwak(indiaDate()).catch((e) => ({ error: e.message }));
+    if (s.error) log(`BaniDB hasn't today's MukhWak yet; SGPC: ${s.error}.`);
+    else {
+      sgpcSpec = s;
+      log(`BaniDB hasn't today's MukhWak yet — using SGPC's page: Ang ${s.sgpc.ang}, shabads ${s.shabadIds.join(', ')} (${s.sgpc.verseIds.length} lines).`);
+      const body = JSON.stringify({ isLatest: true, date: s.date, shabadIds: s.shabadIds, shabads: s.shabads });
+      await page.route(/api\.banidb\.com\/v2\/hukamnamas\//, (route) => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body,
+      }));
+    }
+  }
+}
 page.on('pageerror', (e) => console.warn('page error:', e.message));
 // Not 'networkidle': SevaLekh keeps a live Firebase connection open, so the
 // network never goes quiet. Wait for the page's own "ready" instead.
@@ -151,8 +173,12 @@ const chopKeys = Object.keys(CHOPS).filter((k) => CHOPS[k] * CHOP_SPEED < audioS
 const totals = [...chopKeys.map((k) => CHOPS[k] * CHOP_SPEED), audioSec];
 // Today's approved meanings, fingerprinted: the quick check makes everything
 // again later in the day if they change (an edit or a new approval).
-const fingerprint = await meaningsFingerprint(await mukhwakAngs(info.date.year, info.date.month, info.date.day));
-const index = { date: day, ang: info.ang, made: new Date().toISOString(), fingerprint, langs: {} };
+const fingerprint = await meaningsFingerprint(sgpcSpec
+  ? [...new Set(sgpcSpec.shabads.flatMap((s) => s.verses.map((v) => Number(v.pageNo))).filter(Boolean))].sort((a, b) => a - b)
+  : await mukhwakAngs(info.date.year, info.date.month, info.date.day));
+const index = { date: day, ang: info.ang, made: new Date().toISOString(), fingerprint, langs: {},
+  // Read from SGPC (BaniDB not updated yet): the app uses these until BaniDB has today's.
+  ...(sgpcSpec ? { sgpc: { shabadIds: sgpcSpec.shabadIds, verseIds: sgpcSpec.sgpc.verseIds } } : {}) };
 
 /** Plan timings scaled into a video `speed` times faster. */
 const scale = (plan, speed) => plan.map((p) => ({ ...p, start: p.start / speed, end: p.end / speed }));
