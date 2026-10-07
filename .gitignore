@@ -2,3 +2,5 @@ node_modules/
 site/
 audio.mp3
 list.txt
+out/
+.cache/

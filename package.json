@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "description": "Makes the day's SevaLekh MukhWak pictures and videos every morning and publishes them on GitHub Pages.",
-  "scripts": { "make": "node make.mjs" },
+  "scripts": {
+    "make": "node make.mjs",
+    "karaoke": "node karaoke-video.mjs",
+    "test:karaoke": "node --test test-karaoke.mjs"
+  },
   "dependencies": { "playwright": "^1.48.0" }
 }
