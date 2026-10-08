@@ -69,9 +69,15 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      # 🗣 Spoken meanings: edge-tts unless the Azure secrets are set (speak.mjs).
+      - run: pipx install edge-tts || pip install --user edge-tts
       - id: make
         run: node make.mjs
         env:
+          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+          AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION || vars.AZURE_TTS_REGION }}
+          TTS_GENDER: ${{ vars.TTS_GENDER || 'Male' }}
+          NO_TTS: ${{ vars.NO_TTS || '' }}
           APP_URL: ${{ vars.APP_URL || 'https://granth.web.app' }}
           LANGS: ${{ vars.LANGS || 'pa,en,pnb,hi' }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}

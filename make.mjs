@@ -25,6 +25,7 @@ import path from 'node:path';
 import { meaningsFingerprint, mukhwakAngs } from './fingerprint.mjs';
 import { writeSnapshot } from './snapshot.mjs';
 import { sgpcMukhwak } from './sgpc.mjs';
+import * as tts from './speak.mjs';
 
 const APP = (process.env.APP_URL || 'https://granth.web.app').replace(/\/+$/, '');
 const LANGS = (process.env.LANGS || 'pa,en,pnb,hi').split(',').map((s) => s.trim()).filter(Boolean);
@@ -285,6 +286,41 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
   }
   index.langs[lang] = entry;
 }
+
+// ── 3b. 🗣 The MukhWak with its meanings spoken (Admin → ✨ AI → 🗣 Voices): a Listen
+// video and an MP3 per language — English, Punjabi / Hindi when ticked. The app draws
+// and mixes them (mediaBot.ts listen()); this robot gives the voice (speak.mjs).
+// Never stops the day's other media.
+{
+  const want = Array.isArray(info.bot.ttsLangs) ? info.bot.ttsLangs : ['en'];
+  const hasHook = await page.evaluate(() => typeof window.sevalekhMukhwak.listen === 'function');
+  if (!hasHook) log('🗣 spoken MukhWak: the app has no listen() yet (deploy SevaLekh 0.36+)');
+  else if (process.env.NO_TTS) log('🗣 spoken MukhWak: off (NO_TTS)');
+  else {
+    await page.exposeFunction('robotSpeak', (text, lang) => tts.robotSpeak(text, lang));
+    index.listen = {};
+    for (const lang of want.filter((l) => ['en', 'pa', 'hi'].includes(l))) {
+      const t0 = Date.now();
+      try {
+        const e = {};
+        for (const kind of ['mp4', 'mp3']) {
+          const r = await page.evaluate(([c, k]) => window.sevalekhMukhwak.listen(c, k), [lang, kind]);
+          const file = `${lang}/listen.${r.ext}`;
+          await fs.mkdir(path.join(DIR, lang), { recursive: true });
+          const buf = Buffer.from(r.data, 'base64');
+          await fs.writeFile(path.join(DIR, file), buf);
+          e[kind === 'mp4' ? 'video' : 'audio'] = { file, seconds: Math.round(r.seconds), bytes: buf.length };
+        }
+        index.listen[lang] = e;
+        log(`🗣 ${lang}: spoken MukhWak ${e.video.seconds} s (${(e.video.bytes / 1e6).toFixed(1)} MB video, ${(e.audio.bytes / 1e6).toFixed(1)} MB MP3) in ${Math.round((Date.now() - t0) / 1000)} s`);
+      } catch (err) {
+        log(`🗣 ${lang}: spoken MukhWak not made — ${String(err?.message ?? err).slice(0, 300)}`);
+      }
+    }
+    index.listenVoice = tts.ENGINE;
+    log(`🗣 voice: ${tts.ENGINE === 'azure' ? 'Azure' : 'edge-tts'} · ${tts.charsUsed.toLocaleString()} characters`);
+  }
+}
 await browser.close();
 
 // ── The videos: several ffmpeg runs at once ──
@@ -352,6 +388,7 @@ await writeSnapshot(OUT, log);
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
   Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 9:16 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   Object.entries(e.post?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 4:5 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(index.listen?.[l] ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🗣 ${k === 'video' ? '🎬' : '🎧'} meanings spoken · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   `<p>${(e.story?.images ?? []).map((f) => `<a href="mukhwak/${f}"><img src="mukhwak/${f}" height="160" loading="lazy"></a>`).join(' ')}</p>`).join('');
 await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>SevaLekh · ਮੁੱਖਵਾਕ ${day}</title><body style="font-family:sans-serif;max-width:60rem;margin:auto;padding:1rem">
