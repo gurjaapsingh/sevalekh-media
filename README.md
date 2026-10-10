@@ -9,7 +9,7 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-reel.mp4` (90 s) — the start, at 1.5× (no 1-minute video: every platform takes 90 s); `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
+| Videos 9:16 | `video-reel.mp4` (90 s) — the start, at 1.6× by default (or a valid Admin chop speed override; no 1-minute video: every platform takes 90 s); `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
 | Videos 4:5 | the same, named `video-4x5-reel.mp4` … (Instagram / Facebook feed; switch in Admin) |
 | Thumbnails | `thumb.jpg` 1280×720 (YouTube) and `preview.jpg` 1200×630 (link previews): ਮੁੱਖਵਾਕ · date, the opening Gurbani, granth.web.app |
 | Index for the app | `mukhwak/latest.json` |
@@ -80,7 +80,7 @@ npm run test:karaoke      # the same, with checks on the MP4: audio against the 
 
 ## Good to know
 
-- **Speeds:** the 90-second video uses the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×). Each run's log prints the settings it saw.
+- **Speeds:** the 90-second chopped/cut video uses the Admin's chop speed (1.6× by default when the setting is absent/invalid); `video-fit.mp4` still picks its own speed (recording length ÷ 179 s), and `video-full.mp4` stays normal speed (1×). Custom request overrides are applied only when both speed and duration are supplied together and valid (for example `1.8x 75s` or `speed=1.8 time=75`); partial requests are rejected.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).

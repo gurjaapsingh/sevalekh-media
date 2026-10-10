@@ -44,11 +44,13 @@ The robot already does this. It uploads the **video file itself** to your channe
    - `TELEGRAM_CHAT_ID` = `@yourchannelname` or `-100…`
 5. Optional **Variables**:
    - `TELEGRAM_LANG` = `pa` (default: the first of `LANGS`)
-   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,reel`. Keys: `full`, `fit` (3 min), `reel` (90 s). (`short` still works and sends the 90-s one.)
+   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,reel`. Keys: `full`, `fit` (3 min), `reel` (90 s at the configured chop speed; default 1.6×).
    - `TELEGRAM_TEXT` = `0` to post the video only (default `1`: the video, then the MukhWak's Gurbani as text with SevaLekh's link — no meanings, pad arth or audio link)
 6. Test: **Actions → Daily MukhWak media → Run workflow →** tick **force** and **post**. The log ends with `Telegram: sent pa full video` and `Telegram: sent the MukhWak's Gurbani in 1 message(s)`.
 
 Limits: Telegram bots can upload files up to 50 MB (the robot keeps each video under 44 MB), and a video caption can hold up to 1,024 characters (the caption is the short text, about 280).
+
+Custom chopped video requests (for a future Telegram menu) must carry both speed and duration together (for example `1.8x 75s` or `speed=1.8 time=75`). A speed-only or time-only request is rejected; use the reusable parser/validator in `video-options.mjs` when wiring an interactive request flow.
 
 > Telegram *groups* work too: add the bot to the group and use the group's `-100…` ID.
 
