@@ -54,7 +54,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 ## Posting to social media
 
-- **Telegram bot — videos on request.** Tag the bot (or type `@yourbot ` in any chat) for a menu: Insta Story / Reel, FB Reel / Story / feed, YouTube Short / 16:9, TikTok, WhatsApp Status, X, 4:5 post — any language and size, or your own length and speed (`@yourbot 1.25x 2:00`), made in about a minute. See [telegram-bot/README.md](telegram-bot/README.md).
+- **Telegram bot — videos on request.** Tag the bot (or type `@yourbot ` in any chat) for a menu: Insta Story / Reel, FB Reel / Story / feed, YouTube Short / 16:9, TikTok, WhatsApp Status, X, 4:5 post — any language and size, or (for you and the IDs in `ALLOWED_IDS` only) your own length and speed (`@yourbot 1.25x 2:00`), made in about a minute. See [telegram-bot/README.md](telegram-bot/README.md).
 - **Telegram channel — built in.** Add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` and every morning's run posts the video file (caption without the audio link) and the MukhWak text (with the audio link) to your channel.
 - Facebook, Instagram, YouTube, WhatsApp, X, TikTok and others: step-by-step in **[SOCIAL-AUTOPOST.md](SOCIAL-AUTOPOST.md)**.
 
@@ -82,7 +82,7 @@ npm run test:karaoke      # the same, with checks on the MP4: audio against the 
 
 ## Good to know
 
-- **Speeds:** the 60- and 90-second videos use the Admin's chop speed (1.6× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.
+- **Speeds:** the 60- and 90-second videos use the Admin's chop speed (1.6× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot by its keepers (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).

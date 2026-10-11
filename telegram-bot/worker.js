@@ -10,14 +10,18 @@
  *
  * with the language (ਪੰਜਾਬੀ / English / شاہمکھی / हिंदी) and size (1080p / 720p / 480p).
  * The daily robot's ready videos (GitHub Pages, make.mjs) are sent at once.
- * Anything else — "@yourbot 1.25x 2:00", "reel 45s 16:9 720p en", "2x" — is made to
- * order by a GitHub Action (telegram-video.mjs) and arrives in about a minute.
+ * Anything else — "@yourbot 1.25x 2:00", "reel 45s 16:9 720p en", "2x", 720p / 480p —
+ * is made to order by a GitHub Action (telegram-video.mjs) in about a minute, ONLY for
+ * the Telegram user ids in ALLOWED_IDS (the keeper; empty: nobody — made-to-order off),
+ * so nobody else can load the setup. Everyone else gets the ready videos.
  * Chopped (cut-short) videos are ×1.6 unless another speed is asked for.
  *
  * Setup: telegram-bot/README.md. Settings (Worker → Settings → Variables):
  *   BOT_TOKEN       (secret) the bot's token from @BotFather — the same bot as the robot's
  *   WEBHOOK_SECRET  (secret) any long random text; also unlocks /setup
  *   PAGES_URL       https://<owner>.github.io/sevalekh-media
+ *   ALLOWED_IDS     Telegram user ids allowed videos made to order, e.g. "123456789" or
+ *                   "123456789, 987654321" (send the bot /id to see yours). Empty: off for all.
  *   GH_TOKEN        (secret, optional) fine-grained token, this repository, "Actions: read and write"
  *                   — for videos made to order; without it, only the ready ones are offered
  *   GH_REPO         <owner>/sevalekh-media
@@ -49,6 +53,11 @@ const PRESETS = {
 const ORDER = ['igs', 'igr', 'fbr', 'fbs', 'yts', 'ytw', 'tt', 'wa', 'feed', 'fbw', 'x', 'full'];
 const CHOP_SPEED = 1.6;
 const SHAPE = { story: '9:16', post: '4:5', wide: '16:9' };
+
+/** May this Telegram user have videos made to order (ALLOWED_IDS)? */
+export const allowed = (env, id) => !!id && String(env.ALLOWED_IDS || '').split(/[\s,;]+/).filter(Boolean).includes(String(id));
+const READY_INSTEAD = '🙏 ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ / ਆਕਾਰ ਸਿਰਫ਼ ਪ੍ਰਬੰਧਕਾਂ ਲਈ — ਤਿਆਰ ਵੀਡੀਓ ਭੇਜ ਰਹੇ ਹਾਂ · Custom lengths, speeds and sizes are for the bot’s keepers only — sending the ready video:';
+const KEEPERS_ONLY = '🙏 ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ / ਆਕਾਰ ਦੀਆਂ ਵੀਡੀਓ ਸਿਰਫ਼ ਪ੍ਰਬੰਧਕਾਂ ਲਈ ਹਨ — ਇਹ ਤਿਆਰ ਵੀਡੀਓ ਹਨ · Custom lengths, speeds and sizes are for the bot’s keepers only — here are today’s ready videos:';
 
 export default {
   async fetch(req, env, ctx) {
@@ -123,24 +132,32 @@ async function handle(u, env) {
   const priv = m.chat.type === 'private';
   const name = (bot.username || '').toLowerCase();
   const mentioned = name && (text.toLowerCase().includes(`@${name}`) || (m.entities ?? []).some((e) => e.type === 'mention' && text.slice(e.offset, e.offset + e.length).toLowerCase() === `@${name}`));
-  const command = /^\/(start|mukhwak|video|help)(@\w+)?\b/i.exec(text);
+  const command = /^\/(start|mukhwak|video|help|id)(@\w+)?\b/i.exec(text);
   if (command && command[2] && command[2].slice(1).toLowerCase() !== name) return;   // another bot's command
   const repliedToBot = m.reply_to_message?.from?.id === bot.id;
   if (!priv && !mentioned && !command && !repliedToBot) return;
-  if (command && (command[1].toLowerCase() === 'help' || /^\/start\s+custom/i.test(text))) return send(env, m, helpText(bot.username));
+  const uid = m.from?.id;
+  const keeper = allowed(env, uid);
+  // /id: your Telegram user id (to put in ALLOWED_IDS).
+  if (command && command[1].toLowerCase() === 'id') return send(env, m, `🆔 ${uid}${keeper ? ' ✓' : ''}`);
+  if (command && (command[1].toLowerCase() === 'help' || /^\/start\s+custom/i.test(text))) return send(env, m, helpText(bot.username, keeper));
   const ask = parse(text.replace(new RegExp(`@${name}`, 'ig'), '').replace(/^\/\w+(@\w+)?/, ''));
   const ix = await today(env);
   if (!ix) return send(env, m, '⏳ ਅੱਜ ਦੀਆਂ ਵੀਡੀਓ ਹਾਲੇ ਨਹੀਂ ਬਣੀਆਂ · Today’s videos aren’t ready yet — try again a little later.');
-  // A custom length or speed → made to order.
+  // A custom length / speed / size → made to order, for the keepers only.
+  if ((ask.speed || ask.seconds || (ask.res && ask.res !== 1080)) && !keeper) {
+    if (ask.preset) { await send(env, m, READY_INSTEAD); return deliver(env, m.chat.id, m.message_id, ix, ask.lang || 'pa', 1080, ask.preset, uid); }
+    return send(env, m, KEEPERS_ONLY, { reply_markup: keyboard(ix, ask.lang || 'pa', 1080, false) });
+  }
   if (ask.speed || ask.seconds) {
     const p = ask.preset ? PRESETS[ask.preset] : null;
     const fmt = ask.fmt || p?.fmt || 'story';
     const seconds = ask.seconds || (p && !p.whole ? p.sec : 0);
     const speed = ask.speed || (seconds ? CHOP_SPEED : 1);
-    return toOrder(env, m, { lang: ask.lang || 'pa', fmt, seconds, speed, res: ask.res || 1080, label: p?.label || '' });
+    return toOrder(env, m, { lang: ask.lang || 'pa', fmt, seconds, speed, res: ask.res || 1080, label: p?.label || '', uid });
   }
-  if (ask.preset) return deliver(env, m.chat.id, m.message_id, ix, ask.lang || 'pa', ask.res || 1080, ask.preset);
-  return menu(env, m, ix, ask.lang || 'pa', ask.res || 1080);
+  if (ask.preset) return deliver(env, m.chat.id, m.message_id, ix, ask.lang || 'pa', ask.res || 1080, ask.preset, uid);
+  return menu(env, m, ix, ask.lang || 'pa', ask.res || 1080, keeper);
 }
 
 /** Words → what is asked: "reel 1.25x 2:00 16:9 720p en". */
@@ -182,15 +199,15 @@ export function parse(t) {
   return out;
 }
 
-function helpText(user) {
+function helpText(user, keeper) {
   const at = user ? `@${user}` : '@bot';
   return [
     '🙏 ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ, ਹਰ ਥਾਂ ਲਈ ਵੀਡੀਓ · Today’s MukhWak, a video for every place:',
     `• ${at} — ਮੀਨੂ · the menu (Insta, Facebook, YouTube, TikTok, WhatsApp, X…)`,
     `• ${at} reel · ${at} story en · ${at} youtube 720p`,
-    `• ${at} 1.25x 2:00 16:9 — ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ · your own length / speed (made in about a minute)`,
+    ...(keeper ? [`• ${at} 1.25x 2:00 16:9 720p — ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ / ਆਕਾਰ · your own length / speed / size (made in about a minute; keepers only)`] : []),
     `• ਕਿਸੇ ਵੀ ਚੈਟ ਵਿੱਚ “${at} ” ਲਿਖੋ · type “${at} ” in any chat to send one there`,
-    'ਛੋਟੀਆਂ (ਕੱਟੀਆਂ) ਵੀਡੀਓ ×1.6 · cut videos are ×1.6 unless you ask for another speed.',
+    'ਛੋਟੀਆਂ (ਕੱਟੀਆਂ) ਵੀਡੀਓ ×1.6 · cut videos are ×1.6.',
   ].join('\n');
 }
 
@@ -200,10 +217,12 @@ function send(env, m, text, extra = {}) {
 
 /* ── The menu ────────────────────────────────────────────────────────── */
 
-function keyboard(ix, lang, res) {
+/** `sizes`: the 1080p / 720p / 480p row — only in a keeper's menu (other sizes are made to order). */
+function keyboard(ix, lang, res, sizes) {
   const rows = [];
-  rows.push(LANGS.filter(([c]) => ix?.langs?.[c]).map(([c, l]) => ({ text: `${c === lang ? '✓ ' : ''}${l}`, callback_data: `m|${c}|${res}` })));
-  rows.push(RESES.map((r) => ({ text: `${r === res ? '✓ ' : ''}${r}p`, callback_data: `m|${lang}|${r}` })));
+  const f = sizes ? '|k' : '';
+  rows.push(LANGS.filter(([c]) => ix?.langs?.[c]).map(([c, l]) => ({ text: `${c === lang ? '✓ ' : ''}${l}`, callback_data: `m|${c}|${res}${f}` })));
+  if (sizes) rows.push(RESES.map((r) => ({ text: `${r === res ? '✓ ' : ''}${r}p`, callback_data: `m|${lang}|${r}${f}` })));
   for (let i = 0; i < ORDER.length; i += 2) {
     rows.push(ORDER.slice(i, i + 2).map((k) => {
       const p = PRESETS[k];
@@ -215,42 +234,48 @@ function keyboard(ix, lang, res) {
   return { inline_keyboard: rows };
 }
 
-function menuText(ix, user) {
-  return `🙏 ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ · ${ix.date} · ਅੰਗ ${ix.ang}\nਕਿੱਥੇ ਪਾਉਣੀ ਹੈ? Where is it going?\n` +
-    `ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ · your own: ${user ? `@${user} ` : ''}1.25x 2:00 16:9 720p`;
+function menuText(ix, user, keeper) {
+  return `🙏 ਅੱਜ ਦਾ ਮੁੱਖਵਾਕ · ${ix.date} · ਅੰਗ ${ix.ang}\nਕਿੱਥੇ ਪਾਉਣੀ ਹੈ? Where is it going?` +
+    (keeper ? `\nਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ · your own: ${user ? `@${user} ` : ''}1.25x 2:00 16:9 720p` : '');
 }
 
-async function menu(env, m, ix, lang, res) {
+async function menu(env, m, ix, lang, res, keeper) {
   const bot = await me(env);
-  return send(env, m, menuText(ix, bot.username), { reply_markup: keyboard(ix, lang, res) });
+  return send(env, m, menuText(ix, bot.username, keeper), { reply_markup: keyboard(ix, lang, keeper ? res : 1080, keeper) });
 }
 
 async function callback(q, env) {
   const [kind, lang, resS, key] = String(q.data || '').split('|');
   const res = Number(resS) || 1080;
+  const keeperMenu = String(q.data).endsWith('|k');
   const ix = await today(env);
   if (!ix) return api(env, 'answerCallbackQuery', { callback_query_id: q.id, text: '⏳ not ready yet', show_alert: false });
   if (kind === 'm') {
     await api(env, 'answerCallbackQuery', { callback_query_id: q.id });
-    return api(env, 'editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: keyboard(ix, lang, res) });
+    return api(env, 'editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: keyboard(ix, lang, res, keeperMenu) });
   }
   if (kind === 'v' && PRESETS[key]) {
     if (await tooSoon(env, `u${q.from.id}`, 4)) return api(env, 'answerCallbackQuery', { callback_query_id: q.id, text: '⏳ …' });
     await api(env, 'answerCallbackQuery', { callback_query_id: q.id, text: `⏳ ${PRESETS[key].label}` });
-    return deliver(env, q.message.chat.id, q.message.message_id, ix, lang, res, key);
+    return deliver(env, q.message.chat.id, q.message.message_id, ix, lang, res, key, q.from.id);
   }
   return api(env, 'answerCallbackQuery', { callback_query_id: q.id });
 }
 
 /* ── Sending ─────────────────────────────────────────────────────────── */
 
-async function deliver(env, chat, replyTo, ix, lang, res, key) {
+async function deliver(env, chat, replyTo, ix, lang, res, key, uid) {
   const p = PRESETS[key];
   const v = ready(ix, lang, p);
+  // Only keepers get other sizes / videos not made ready (made to order).
+  if (!allowed(env, uid)) {
+    res = 1080;
+    if (!v) return api(env, 'sendMessage', { chat_id: chat, text: `🙏 ${p.label}: ਅੱਜ ਤਿਆਰ ਨਹੀਂ · not ready-made today — please pick another.`, reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } });
+  }
   if (!v || res !== 1080) {
     // Not ready-made in this shape / size: made to order (the robot's lengths and speed).
     const seconds = p.whole ? 0 : p.sec;
-    return toOrder(env, { chat: { id: chat }, message_id: replyTo }, { lang, fmt: p.fmt, seconds, speed: seconds ? (v?.speed || CHOP_SPEED) : (p.key === 'fit' && v?.speed) || 1, res, label: p.label });
+    return toOrder(env, { chat: { id: chat }, message_id: replyTo }, { lang, fmt: p.fmt, seconds, speed: seconds ? (v?.speed || CHOP_SPEED) : (p.key === 'fit' && v?.speed) || 1, res, label: p.label, uid });
   }
   const caption = `ਮੁੱਖਵਾਕ ${ix.date} · ${p.label} · ${SHAPE[p.fmt]} · ${Math.floor(v.seconds / 60)}:${String(v.seconds % 60).padStart(2, '0')}${v.speed ? ` · ×${v.speed}` : ''}\nsevalekh.com`;
   const [w, h] = p.fmt === 'wide' ? [1920, 1080] : p.fmt === 'post' ? [1080, 1350] : [1080, 1920];
@@ -275,6 +300,8 @@ async function deliver(env, chat, replyTo, ix, lang, res, key) {
 
 /** Made to order by the GitHub Action (telegram-video.yml), sent back to the chat when done. */
 async function toOrder(env, m, o) {
+  // The one gate for the GitHub Action: keepers only (ALLOWED_IDS), whatever asked for it.
+  if (!allowed(env, o.uid)) return send(env, m, KEEPERS_ONLY);
   if (!env.GH_TOKEN || !env.GH_REPO) {
     return send(env, m, '🙏 ਇਹ ਵੀਡੀਓ ਤਿਆਰ ਨਹੀਂ · That one isn’t ready-made — pick one from the menu (the bot’s keeper can switch on videos made to order: GH_TOKEN).');
   }
@@ -331,7 +358,7 @@ async function inline(q, env) {
     inline_query_id: q.id, results, cache_time: 300, is_personal: false,
     // Opens a private chat with the bot: the menu, and videos of any length / speed.
     button: results.length
-      ? { text: '⚙ ਆਪਣੀ ਲੰਬਾਈ / ਰਫ਼ਤਾਰ · your own length / speed', start_parameter: 'custom' }
+      ? { text: '📋 ਮੀਨੂ · all videos', start_parameter: 'menu' }
       : { text: '⏳ ਹਾਲੇ ਤਿਆਰ ਨਹੀਂ · not ready yet — open the bot', start_parameter: 'menu' },
   });
 }

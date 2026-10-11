@@ -12,15 +12,16 @@ Tag the bot, message it, or type `@yourbot ` in **any** chat, and it offers toda
 | 🖼 Insta / FB post 4:5 | 4:5 | 90 s at ×1.6 |
 | 📖 Whole 9:16 | 9:16 | the whole MukhWak |
 
-Plus the language (ਪੰਜਾਬੀ / English / شاہمکھی / हिंदी) and the size (1080p / 720p / 480p).
+Plus the language (ਪੰਜਾਬੀ / English / شاہمکھی / हिंदी). The size row (1080p / 720p / 480p) appears only in your own menu.
 
-- The daily robot's **ready** videos (1080p) are sent at once.
-- **Anything else** is made to order by a GitHub Action (`telegram-video.yml` → `telegram-video.mjs`) and arrives in about a minute. That covers another size, or your own length and speed, e.g.:
+- The daily robot's **ready** videos (1080p) are sent at once, to **everyone**.
+- **Made to order is only for you** (and any Telegram IDs you add to `ALLOWED_IDS`). Nobody else can make the setup work, so it can't be overloaded. With `ALLOWED_IDS` empty, it is **off for everyone**, and everyone gets only the ready videos.
+- Made to order runs a GitHub Action (`telegram-video.yml` → `telegram-video.mjs`) and arrives in about a minute. That covers another size (720p / 480p), or your own length and speed, e.g.:
   - `@yourbot 1.25x 2:00 16:9 720p en`
   - `@yourbot reel 45s`
   - `@yourbot 2x`
 - **Chopped (cut-short) videos are ×1.6** unless a speed is given (`1.25x`). A length alone (`45s`, `2:00`, `3 min`) is cut at ×1.6; a speed alone (`2x`) is the whole MukhWak at that speed.
-- `/help` lists all of this in the chat.
+- `/help` lists all of this in the chat; `/id` shows your Telegram user ID.
 
 Bot usernames always end in `bot` (e.g. `@mukhwaak_bot`). The **channel** can still be `@mukhwaak`.
 
@@ -46,8 +47,9 @@ In Telegram, open **@BotFather**:
    - `PAGES_URL` (Text): `https://<your-github-name>.github.io/sevalekh-media`
    - `GH_REPO` (Text): `<your-github-name>/sevalekh-media`
    - `GH_REF` (Text): `main`
+   - `ALLOWED_IDS` (Text): your Telegram user ID, e.g. `123456789`. Send the bot `/id` to see it (it answers `🆔 123456789`, with ✓ once listed). Add more people with commas: `123456789, 987654321`. Leave it out to keep made-to-order off.
    - `GH_TOKEN` (Secret): needed only for videos made to order. Create it on GitHub under **Settings → Developer settings → Fine-grained tokens → Generate**, with **Only select repositories →** `sevalekh-media` and **Permissions → Actions: Read and write**.
-4. Optional, recommended: under **Storage → KV → Create** make a namespace, e.g. `mukhwak-bot`. Then in the Worker go to **Settings → Bindings → KV namespace** and set variable name `CACHE`. With it, a video already sent goes again instantly (Telegram's own copy), inline results are faster, and nobody can start more than one made-to-order video a minute per chat.
+4. Optional, recommended: under **Storage → KV → Create** make a namespace, e.g. `mukhwak-bot`. Then in the Worker go to **Settings → Bindings → KV namespace** and set variable name `CACHE`. With it, a video already sent goes again instantly (Telegram's own copy), inline results are faster, and even you can't start more than one made-to-order video a minute per chat.
 5. Open `https://mukhwak-bot.<your-subdomain>.workers.dev/setup?key=<WEBHOOK_SECRET>` in a browser. It should answer with `"webhook": {"ok": true…}` and the bot's username.
 
 ### 3. Try it
