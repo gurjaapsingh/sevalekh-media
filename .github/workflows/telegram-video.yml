@@ -1,0 +1,63 @@
+# 🤖 A MukhWak video made to order for the Telegram bot (telegram-bot/worker.js
+# starts this when someone asks for a length / speed / size the robot hasn't
+# made ready). About a minute: it reshapes the day's whole video already on
+# Pages (telegram-video.mjs) and sends it straight back to the chat.
+name: Telegram video on request
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat:
+        description: 'Telegram chat id'
+        required: true
+      reply:
+        description: 'Message id to answer (optional)'
+        default: ''
+      lang:
+        description: 'pa / en / pnb / hi'
+        default: 'pa'
+      fmt:
+        description: 'story (9:16) / post (4:5) / wide (16:9)'
+        default: 'story'
+      seconds:
+        description: 'Length in seconds (empty: the whole MukhWak)'
+        default: ''
+      speed:
+        description: 'Speed (empty: 1.6 when cut to a length, else 1)'
+        default: ''
+      res:
+        description: '1080 / 720 / 480'
+        default: '1080'
+      label:
+        description: 'What was asked for (caption)'
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-video-${{ inputs.chat }}
+  cancel-in-progress: false
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+      - run: node telegram-video.mjs
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TG_MUKHWAK_BOT_TOKEN || vars.TELEGRAM_BOT_TOKEN }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          CHAT_ID: ${{ inputs.chat }}
+          REPLY_TO: ${{ inputs.reply }}
+          LANG: ${{ inputs.lang }}
+          FMT: ${{ inputs.fmt }}
+          SECONDS: ${{ inputs.seconds }}
+          SPEED: ${{ inputs.speed }}
+          RES: ${{ inputs.res }}
+          LABEL: ${{ inputs.label }}
