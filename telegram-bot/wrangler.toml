@@ -1,0 +1,14 @@
+# Optional: deploy from a computer with `npx wrangler deploy` (instead of pasting worker.js
+# in the dashboard). Secrets: `npx wrangler secret put BOT_TOKEN` (and WEBHOOK_SECRET, GH_TOKEN).
+name = "mukhwak-bot"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+PAGES_URL = "https://gurjaapsingh.github.io/sevalekh-media"
+GH_REPO = "gurjaapsingh/sevalekh-media"
+GH_REF = "main"
+
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "<the namespace id from: npx wrangler kv namespace create mukhwak-bot>"

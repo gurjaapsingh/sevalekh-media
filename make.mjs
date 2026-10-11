@@ -5,9 +5,10 @@
  *    (window.sevalekhMukhwak, src/mediaBot.ts) for the cards — the same
  *    pictures phones draw, with SevaLekh's approved vyakhya.
  * 2. Downloads SGPC's recording (no browser here, so no CORS problem).
- * 3. ffmpeg turns the cards + audio into videos, 9:16 and 4:5: the first 1 and
- *    2 minutes (at 1.5×), the whole MukhWak, and the whole sped up to fit
- *    3 minutes — each kept under 44 MB so phones can share them.
+ * 3. ffmpeg turns the cards + audio into videos, 9:16, 4:5 and 16:9: the first
+ *    60 s and 90 s (at 1.6×), the whole MukhWak, and the whole sped up to fit
+ *    3 minutes — each kept under 44 MB so phones can share them. (16:9 — YouTube,
+ *    Facebook feed, X — is the 4:5 cards on a blurred copy of themselves.)
  * 4. Writes site/mukhwak/latest.json (read by the app) and the files; the
  *    workflow publishes site/ on GitHub Pages.
  *
@@ -34,9 +35,11 @@ const FORCE = !!process.env.FORCE;
 const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
-// Chopped video: the start of the MukhWak, 90 s at the Admin's chop speed (1.5× by default).
-// Every platform now takes at least 90 s (WhatsApp Status, Reels, Shorts, TikTok, X), so no 1-minute one.
-const CHOPS = { reel: 90 };
+// Chopped videos: the start of the MukhWak at the Admin's chop speed (1.6× by default) —
+// 90 s (Reels, Shorts, TikTok, WhatsApp Status, X) and 60 s (Instagram / Facebook stories,
+// which cut at a minute). Any other length or speed: the Telegram bot makes it on request
+// (telegram-video.mjs).
+const CHOPS = { reel: 90, min: 60 };
 // ffmpeg jobs at once — GitHub's runners have 4 cores.
 const PARALLEL = 3;
 // "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
@@ -123,10 +126,13 @@ log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join('
 // Admin → 2 · MukhWak → What the robot makes
 const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
 // Three videos per size and language: 90 s, the whole MukhWak, and the whole in 2:59.
-const CHOP_SPEED = [1, 1.25, 1.5, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.5;
+// 1.6× unless the Admin chose another (1.5 was the old default, saved with every change: now 1.6).
+const CHOP_SPEED = [1, 1.25, 1.6, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.6;
+// 16:9 videos too (YouTube, Facebook feed, X): repository variable WIDE_VIDEOS=0 turns them off.
+const WIDE = process.env.WIDE_VIDEOS !== '0';
 const FIT = info.bot.fit !== false;                 // default on
 const POST_VIDEOS = info.bot.postVideos !== false;  // 4:5 videos too (default on)
-log(`Full video ${FULL_RES}p; 90-s video at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}`);
+log(`Full video ${FULL_RES}p; 60-s and 90-s videos at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}; 16:9 ${WIDE ? 'on' : 'off'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -262,26 +268,29 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
       entry.preview = prev;
     }
 
-    // ── 3. Videos: 9:16 (Reels, Shorts, TikTok, status) and 4:5 (Instagram / Facebook feed) ──
-    if (fmt === 'post' && !POST_VIDEOS) continue;
-    const videos = entry[fmt].videos = {};
-    const tag = fmt === 'story' ? '' : '-4x5';
-    // Queued now, made all together after the pictures (several at once — see PARALLEL).
-    const make = (key, plan, T, speed, long) => videoJobs.push(async () => {
-      const file = `${lang}/video${tag}-${key}.mp4`;
-      const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: long ? FULL_RES : 1080, long, speed });
-      videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
-      log(`${lang} ${fmt} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
-    });
+    // ── 3. Videos: 9:16 (Reels, Shorts, TikTok, status), 4:5 (Instagram / Facebook feed),
+    //       16:9 from the 4:5 cards (YouTube, Facebook feed, X) ──
     // The whole MukhWak at normal speed (cards following the recitation).
     const full = fullPlan(res.plans[res.plans.length - 1], audioSec);
-    // 90 s: the start of the MukhWak at the chop speed — the same timings, cut off.
-    for (const k of chopKeys) make(k, cutPlan(scale(full, CHOP_SPEED), CHOPS[k], audioSec / CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
-    make('full', full, audioSec, 1, audioSec > 200);
-    // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
-    if (FIT && audioSec > FIT_SECONDS) {
-      const sp = Math.ceil((audioSec / FIT_SECONDS) * 100) / 100;
-      make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
+    const shapes = fmt === 'story' ? [['story', '', false]] : [...(POST_VIDEOS ? [['post', '-4x5', false]] : []), ...(WIDE ? [['wide', '-16x9', true]] : [])];
+    for (const [into, tag, wide] of shapes) {
+      if (wide) entry.wide = { images: entry.post.images };
+      const videos = entry[into].videos = {};
+      // Queued now, made all together after the pictures (several at once — see PARALLEL).
+      const make = (key, plan, T, speed, long) => videoJobs.push(async () => {
+        const file = `${lang}/video${tag}-${key}.mp4`;
+        const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: long ? FULL_RES : 1080, long, speed, wide });
+        videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
+        log(`${lang} ${into} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
+      });
+      // 60 s and 90 s: the start of the MukhWak at the chop speed — the same timings, cut off.
+      for (const k of chopKeys) make(k, cutPlan(scale(full, CHOP_SPEED), CHOPS[k], audioSec / CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
+      make('full', full, audioSec, 1, audioSec > 200);
+      // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
+      if (FIT && audioSec > FIT_SECONDS) {
+        const sp = Math.ceil((audioSec / FIT_SECONDS) * 100) / 100;
+        make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
+      }
     }
   }
   index.langs[lang] = entry;
@@ -333,7 +342,7 @@ await browser.close();
 }
 
 /** Slideshow + audio with ffmpeg; made again smaller if it comes out too big to share. */
-async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false, speed = 1 } = {}) {
+async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false, speed = 1, wide = false } = {}) {
   const list = `${out}.txt`;   // one list per video: several are made at once
   const lines = [];
   for (const p of plan) {
@@ -354,7 +363,10 @@ async function makeVideo(plan, images, T, out, { width: w0 = 1080, long = false,
       '-i', audioPath,
       '-t', T.toFixed(2),
       '-map', '0:v', '-map', '1:a',
-      '-vf', `scale=${width}:-2:flags=lanczos,fps=${fps},format=yuv420p`,
+      // 16:9: the 4:5 card whole, on a blurred, darkened copy of itself filling the frame.
+      ...(wide
+        ? ['-vf', `split[a][b];[a]scale=${Math.round(width * 16 / 9 / 2) * 2}:${width}:force_original_aspect_ratio=increase,crop=${Math.round(width * 16 / 9 / 2) * 2}:${width},boxblur=30:2,eq=brightness=-0.08[bg];[b]scale=-2:${width}:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:0,fps=${fps},format=yuv420p`]
+        : ['-vf', `scale=${width}:-2:flags=lanczos,fps=${fps},format=yuv420p`]),
       // veryfast: still pictures gain little from slower presets, and it's several times quicker.
       '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'stillimage', '-crf', String(crf),
       '-maxrate', String(maxrate), '-bufsize', String(maxrate * 2),
@@ -388,6 +400,7 @@ await writeSnapshot(OUT, log);
 const links = Object.entries(index.langs).map(([l, e]) => `<h2>${l}</h2>` +
   Object.entries(e.story?.videos ?? {}).map(([k, v]) => `<p><a href="${APP}/v/${l}/${k}/?d=${day}">🎬 9:16 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   Object.entries(e.post?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 4:5 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
+  Object.entries(e.wide?.videos ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🎬 16:9 ${k}${v.speed ? ' ×' + v.speed : ''} · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   Object.entries(index.listen?.[l] ?? {}).map(([k, v]) => `<p><a href="mukhwak/${v.file}">🗣 ${k === 'video' ? '🎬' : '🎧'} meanings spoken · ${v.seconds}s · ${(v.bytes / 1e6).toFixed(1)} MB</a></p>`).join('') +
   `<p>${(e.story?.images ?? []).map((f) => `<a href="mukhwak/${f}"><img src="mukhwak/${f}" height="160" loading="lazy"></a>`).join(' ')}</p>`).join('');
 await fs.writeFile(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">

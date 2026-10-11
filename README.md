@@ -9,8 +9,9 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-reel.mp4` (90 s) — the start, at 1.5× (no 1-minute video: every platform takes 90 s); `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
+| Videos 9:16 | `video-reel.mp4` (90 s) and `video-min.mp4` (60 s, for Instagram / Facebook stories) — the start, at 1.6×; `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
 | Videos 4:5 | the same, named `video-4x5-reel.mp4` … (Instagram / Facebook feed; switch in Admin) |
+| Videos 16:9 | the same, named `video-16x9-reel.mp4` … (YouTube, Facebook feed, X): the 4:5 cards on a blurred copy of themselves. Variable `WIDE_VIDEOS=0` turns them off |
 | Thumbnails | `thumb.jpg` 1280×720 (YouTube) and `preview.jpg` 1200×630 (link previews): ਮੁੱਖਵਾਕ · date, the opening Gurbani, granth.web.app |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
@@ -53,6 +54,7 @@ Optional (repository **Settings → Secrets and variables → Actions → Variab
 
 ## Posting to social media
 
+- **Telegram bot — videos on request.** Tag the bot (or type `@yourbot ` in any chat) for a menu: Insta Story / Reel, FB Reel / Story / feed, YouTube Short / 16:9, TikTok, WhatsApp Status, X, 4:5 post — any language and size, or your own length and speed (`@yourbot 1.25x 2:00`), made in about a minute. See [telegram-bot/README.md](telegram-bot/README.md).
 - **Telegram channel — built in.** Add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` and every morning's run posts the video file (caption without the audio link) and the MukhWak text (with the audio link) to your channel.
 - Facebook, Instagram, YouTube, WhatsApp, X, TikTok and others: step-by-step in **[SOCIAL-AUTOPOST.md](SOCIAL-AUTOPOST.md)**.
 
@@ -80,7 +82,7 @@ npm run test:karaoke      # the same, with checks on the MP4: audio against the 
 
 ## Good to know
 
-- **Speeds:** the 90-second video uses the Admin's chop speed (1.5× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×). Each run's log prints the settings it saw.
+- **Speeds:** the 60- and 90-second videos use the Admin's chop speed (1.6× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).
