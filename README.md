@@ -80,6 +80,52 @@ node karaoke-video.mjs --align samples/karaoke/alignment --audio out/mock-audio 
 npm run test:karaoke      # the same, with checks on the MP4: audio against the source, colours, when each word lights
 ```
 
+## 🔔 Notifications (phones and browsers)
+
+The same public repository also sends SevaLekh's notifications: `push/push.mjs`, every 15 minutes
+(`.github/workflows/push.yml`). Free — GitHub Actions for a public repository, and Firebase Cloud
+Messaging on the Spark plan; a run with nothing to send takes seconds and a handful of database reads.
+
+**What it sends** — each device chooses in ☰ → 🔔 (the app invites everyone after ~20 s on a page):
+
+| | When |
+|---|---|
+| 📖 Today's MukhWak | once a day, after this robot publishes it |
+| 📝 Vyakhya & Shabad commentary — new **and** edited | once approved and untouched for an hour; gathered, at most every 4 hours; the Ang and the first line with meanings |
+| 📚 Dictionary words — new and edited | the same; each word with its meaning |
+| 📢 News | Admin announcements ticked "🔔 also send", the Important Notice's 🔔, Admin → 🔔 → Send a notification |
+| 🆕 New Ardas in the Sangat (off by default) | gathered, at most every 4 hours |
+| 🙏🏽 Replies & ੴ ਸਤਿਨਾਮ on my Ardas, replies to my reply | at once (personal) |
+| 🙋🏽 Vyakhya on an Ang I requested | at once (personal) |
+| 👥 Seva (volunteers): comments / ⚑ on my entries, approved / sent back; reports for Moderators | at once (personal) |
+
+Everything for everyone arrives in the hours each device chose — ☀ daytime (8:00–21:00 where the
+phone is, the default), 🌙 night-time, or 🕐 any time — so what comes out at night reaches daytime
+people in their morning, in one notification. Devices are grouped by time zone automatically (topics
+like `sl_vyakhya_pa_America.Edmonton_day`); nothing to manage.
+
+### Set up (about 10 minutes, once)
+
+1. **Web Push key.** [Firebase console](https://console.firebase.google.com/project/sttmpure/settings/cloudmessaging)
+   → ⚙ Project settings → **Cloud Messaging** → *Web configuration* → **Web Push certificates** →
+   **Generate key pair**. Copy the key (starts with `B…`), then in SevaLekh: **☰ → Admin → 📱 Apps → 🔔
+   Notifications → Web Push key → Save**. From that moment the app offers notifications.
+2. **A key for this robot.** [Google Cloud → IAM → Service accounts](https://console.cloud.google.com/iam-admin/serviceaccounts?project=sttmpure)
+   → **Create service account** (e.g. `sevalekh-push`) → give it two roles: **Cloud Datastore User** and
+   **Firebase Cloud Messaging API Admin** → Done. Open it → **Keys → Add key → Create new key → JSON**.
+3. In this repository: **Settings → Secrets and variables → Actions → New repository secret**:
+   name `FIREBASE_PUSH_SA`, value = the whole JSON file. Then delete the downloaded file from your PC.
+4. **Actions → Notifications → Run workflow**, tick *dry run*: the log shows what it would send. After
+   that it runs by itself.
+5. Admin → 📱 → 🔔 shows "Robot: last checked … · last sent …" and how many devices are listening.
+
+If phones can't turn notifications on ("Could not turn them on"), check in Google Cloud → APIs that
+**Firebase Cloud Messaging API** and **FCM Registration API** are enabled, and — if the browser API key
+has API restrictions — that it allows **Firebase Installations API** and **FCM Registration API**.
+
+Optional repository *variables*: `PUSH_QUIET_MINUTES` (60), `PUSH_MIN_GAP_HOURS` (4),
+`PUSH_DAY_START` (8), `PUSH_DAY_END` (21). Tests: `cd push && npm ci && npm test` (no network needed).
+
 ## Good to know
 
 - **Speeds:** the 60- and 90-second videos use the Admin's chop speed (1.6× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.

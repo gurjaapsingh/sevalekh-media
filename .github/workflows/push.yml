@@ -1,0 +1,59 @@
+# 🔔 SevaLekh notifications — every 15 minutes, all day (push/push.mjs).
+#
+# Free: GitHub Actions costs nothing for a public repository, and Firebase
+# Cloud Messaging is free on the Spark plan. A run with nothing to send takes
+# a few seconds and a handful of database reads.
+#
+# One-time setup (README.md → "🔔 Notifications"): the repository secret
+# FIREBASE_PUSH_SA — a Google Cloud service-account key (JSON) with the roles
+# "Cloud Datastore User" and "Firebase Cloud Messaging API Admin". Until it is
+# there, each run just says "not set up".
+#
+# Run by hand from the Actions tab; tick "dry run" to see what would be sent
+# without sending anything.
+name: Notifications
+
+on:
+  schedule:
+    # Off the busy round minutes (GitHub starts those late or skips them).
+    - cron: '4,19,34,49 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'Dry run — log what would be sent, send nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: push/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: push
+      - run: node push.mjs
+        working-directory: push
+        env:
+          FIREBASE_PUSH_SA: ${{ secrets.FIREBASE_PUSH_SA }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          DRY_RUN: ${{ inputs.dry && '1' || '' }}
+          # Optional repository variables: minutes an entry must stay untouched
+          # before it is announced; hours between two 📝 / 📚 / 🆕 notifications
+          # in one place; the local hours "☀ daytime" covers (night is the rest).
+          QUIET_MINUTES: ${{ vars.PUSH_QUIET_MINUTES || '60' }}
+          MIN_GAP_HOURS: ${{ vars.PUSH_MIN_GAP_HOURS || '4' }}
+          DAY_START: ${{ vars.PUSH_DAY_START || '8' }}
+          DAY_END: ${{ vars.PUSH_DAY_END || '21' }}
