@@ -41,9 +41,9 @@ const PRESETS = {
   ytw: { label: '▶️ YouTube 16:9', fmt: 'wide', key: 'full', sec: 0 },
   tt: { label: '🎵 TikTok', fmt: 'story', key: 'reel', sec: 90 },
   wa: { label: '💬 WhatsApp Status', fmt: 'story', key: 'reel', sec: 90 },
-  feed: { label: '🖼 Insta / FB post 4:5', fmt: 'post', key: 'reel', sec: 90 },
+  feed: { label: '🖼 Insta / FB post 4:5', fmt: 'post', key: 'feed', sec: 140 },
   fbw: { label: '📘 FB feed 16:9', fmt: 'wide', key: 'full', sec: 0 },
-  x: { label: '𝕏 X / Twitter 16:9', fmt: 'wide', key: 'reel', sec: 90 },
+  x: { label: '𝕏 X / Twitter 16:9', fmt: 'wide', key: 'feed', sec: 140 },
   full: { label: '📖 ਪੂਰਾ · Whole 9:16', fmt: 'story', key: 'full', sec: 0 },
 };
 const ORDER = ['igs', 'igr', 'fbr', 'fbs', 'yts', 'ytw', 'tt', 'wa', 'feed', 'fbw', 'x', 'full'];
@@ -108,7 +108,10 @@ function ready(ix, lang, p) {
   const vids = ix?.langs?.[lang]?.[p.fmt]?.videos;
   if (!vids) return null;
   if (p.key === 'fit') return vids.fit ?? vids.full ?? null;   // the whole MukhWak fits 3 minutes anyway
-  return vids[p.key] ?? null;
+  // A short MukhWak: the robot skips lengths the whole one already fits.
+  const fits = vids.full && vids.full.seconds <= p.sec ? vids.full : null;
+  // 'feed' (2:20) is new: an older day's index has the 90-s 'reel' there.
+  return vids[p.key] ?? (p.key === 'feed' ? vids.reel : null) ?? fits ?? null;
 }
 
 /* ── Updates ─────────────────────────────────────────────────────────── */

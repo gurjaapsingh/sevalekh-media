@@ -4,12 +4,14 @@ Tag the bot, message it, or type `@yourbot ` in **any** chat, and it offers toda
 
 | Button | Shape | Length |
 |---|---|---|
-| 📸 Insta Story · 📘 FB Story | 9:16 | 60 s at ×1.6 |
-| 📸 Insta Reel · 📘 FB Reel · 🎵 TikTok · 💬 WhatsApp Status | 9:16 | 90 s at ×1.6 |
-| ▶️ YouTube Short | 9:16 | the whole MukhWak sped up to fit 2:59 |
+| 📸 Insta Story · 📘 FB Story | 9:16 | 1:00 |
+| 📸 Insta Reel · 📘 FB Reel · 🎵 TikTok · 💬 WhatsApp Status | 9:16 | 1:30 |
+| ▶️ YouTube Short | 9:16 | 2:59 |
 | ▶️ YouTube 16:9 · 📘 FB feed 16:9 | 16:9 | the whole MukhWak |
-| 𝕏 X / Twitter 16:9 | 16:9 | 90 s at ×1.6 |
-| 🖼 Insta / FB post 4:5 | 4:5 | 90 s at ×1.6 |
+| 𝕏 X / Twitter 16:9 | 16:9 | 2:20 |
+| 🖼 Insta / FB post 4:5 | 4:5 | 2:20 |
+
+Each length is the whole MukhWak sped up just enough (at most ×1.6), or — when even ×1.6 is too long — its start at ×1.6, cut to the length.
 | 📖 Whole 9:16 | 9:16 | the whole MukhWak |
 
 Plus the language (ਪੰਜਾਬੀ / English / شاہمکھی / हिंदी) and the size (1080p / 720p / 480p).
