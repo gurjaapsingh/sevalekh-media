@@ -44,7 +44,7 @@ The robot already does this. It uploads the **video file itself** to your channe
    - `TELEGRAM_CHAT_ID` = `@yourchannelname` or `-100…`
 5. Optional **Variables**:
    - `TELEGRAM_LANG` = `pa` (default: the first of `LANGS`)
-   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,reel`. Keys: `full`, `fit` (3 min), `reel` (90 s), `min` (60 s). (`short` still works and sends the 90-s one.)
+   - `TELEGRAM_VIDEO` = `full` (default: the whole MukhWak at normal speed — Telegram's player has its own speed button). Can be a list, e.g. `full,reel`. Keys: `full`, `fit` (2:59), `reel` (1:30), `min` (1:00) — 9:16; each the whole MukhWak at up to ×1.6, else its start. (`short` still works and sends the 90-s one.)
    - `TELEGRAM_TEXT` = `0` to post the video only (default `1`: the video, then the MukhWak's Gurbani as text with SevaLekh's link — no meanings, pad arth or audio link)
 6. Test: **Actions → Daily MukhWak media → Run workflow →** tick **force** and **post**. The log ends with `Telegram: sent pa full video` and `Telegram: sent the MukhWak's Gurbani in 1 message(s)`.
 

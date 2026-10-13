@@ -5,10 +5,10 @@
  *    (window.sevalekhMukhwak, src/mediaBot.ts) for the cards — the same
  *    pictures phones draw, with SevaLekh's approved vyakhya.
  * 2. Downloads SGPC's recording (no browser here, so no CORS problem).
- * 3. ffmpeg turns the cards + audio into videos, 9:16, 4:5 and 16:9: the first
- *    60 s and 90 s (at 1.6×), the whole MukhWak, and the whole sped up to fit
- *    3 minutes — each kept under 44 MB so phones can share them. (16:9 — YouTube,
- *    Facebook feed, X — is the 4:5 cards on a blurred copy of themselves.)
+ * 3. ffmpeg turns the cards + audio into videos — each shape only the lengths
+ *    its places take (LENGTHS below), plus the whole MukhWak — each kept under
+ *    44 MB so phones can share them. (16:9 — YouTube, Facebook feed, X — is the
+ *    4:5 cards on a blurred copy of themselves.)
  * 4. Writes site/mukhwak/latest.json (read by the app) and the files; the
  *    workflow publishes site/ on GitHub Pages.
  *
@@ -35,15 +35,21 @@ const FORCE = !!process.env.FORCE;
 const OUT = path.resolve('site');
 const DIR = path.join(OUT, 'mukhwak');
 const LIMIT = 44 * 1024 * 1024;
-// Chopped videos: the start of the MukhWak at the Admin's chop speed (1.6× by default) —
-// 90 s (Reels, Shorts, TikTok, WhatsApp Status, X) and 60 s (Instagram / Facebook stories,
-// which cut at a minute). Any other length or speed: the Telegram bot makes it on request
-// (telegram-video.mjs).
-const CHOPS = { reel: 90, min: 60 };
+// What each shape is for, and only the lengths those places take (limits checked
+// October 2026). Each length is the whole MukhWak sped up just enough — at most
+// MAX_SPEED (the Admin's, ×1.6 by default; the voice keeps its pitch) — or, when
+// even that is too long, its start at MAX_SPEED cut to the length (the cards
+// follow the recitation). The whole MukhWak at normal speed is always made too.
+// Any other length, speed or shape: the Telegram bot makes it on request
+// (telegram-video.mjs), and phones can make their own.
+//   9:16  min   1:00  Stories & Status — Instagram / Facebook Story, WhatsApp Status, Snapchat
+//         reel  1:30  Reels — Instagram (90 s: what Instagram lets apps post) and Facebook, TikTok
+//         fit   2:59  Shorts — YouTube Shorts, Instagram Reels (3 min), TikTok
+//   4:5   feed  2:20  Feed posts — Instagram, Facebook, X (2:20 without Premium), LinkedIn, Threads
+//   16:9  feed  2:20  X; YouTube and the Facebook feed take the whole one
+const LENGTHS = { story: { min: 60, reel: 90, fit: 179 }, post: { feed: 140 }, wide: { feed: 140 } };
 // ffmpeg jobs at once — GitHub's runners have 4 cores.
 const PARALLEL = 3;
-// "fit": the whole MukhWak sped up just enough to fit a 3-minute Short / Reel.
-const FIT_SECONDS = 179;   // 2:59 — safely under YouTube Shorts' 3 minutes
 // The cards follow the recitation: the title card over the opening (25 s), the verses
 // in proportion, and the closing card over the repeat at the recording's end (12 s:
 // the last verses and the opening again) — at 1×, scaled by the speed. A chopped
@@ -125,14 +131,15 @@ const day = `${info.date.year}-${String(info.date.month).padStart(2, '0')}-${Str
 log(`MukhWak ${day}, Ang ${info.ang}; languages on the page: ${info.langs.join(', ')}`);
 // Admin → 2 · MukhWak → What the robot makes
 const FULL_RES = info.bot.fullRes === 720 ? 720 : 1080;
-// Three videos per size and language: 90 s, the whole MukhWak, and the whole in 2:59.
-// 1.6× unless the Admin chose another (1.5 was the old default, saved with every change: now 1.6).
-const CHOP_SPEED = [1, 1.25, 1.6, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.6;
+// The fastest a shortened video may go: 1.6× unless the Admin chose another
+// (1.5 was the old default, saved with every change: now 1.6).
+const MAX_SPEED = [1, 1.25, 1.6, 2].includes(Number(info.bot.chopSpeed)) ? Number(info.bot.chopSpeed) : 1.6;
 // 16:9 videos too (YouTube, Facebook feed, X): repository variable WIDE_VIDEOS=0 turns them off.
 const WIDE = process.env.WIDE_VIDEOS !== '0';
-const FIT = info.bot.fit !== false;                 // default on
+const FIT = info.bot.fit !== false;                 // the 3-minute 9:16 one (default on)
+if (!FIT) delete LENGTHS.story.fit;
 const POST_VIDEOS = info.bot.postVideos !== false;  // 4:5 videos too (default on)
-log(`Full video ${FULL_RES}p; 60-s and 90-s videos at ×${CHOP_SPEED}; whole-in-2:59 ${FIT ? 'on' : 'off'}; 4:5 videos ${POST_VIDEOS ? 'on' : 'off'}; 16:9 ${WIDE ? 'on' : 'off'}`);
+log(`Full video ${FULL_RES}p; shorter ones at most ×${MAX_SPEED}: 9:16 ${Object.values(LENGTHS.story).join('/')} s; 4:5 ${POST_VIDEOS ? `${Object.values(LENGTHS.post).join('/')} s` : 'off'}; 16:9 ${WIDE ? `${Object.values(LENGTHS.wide).join('/')} s` : 'off'}`);
 if (day !== indiaDate() && !FORCE) {
   console.error(`The page still shows ${day}, not ${indiaDate()} — too early. Will try again at the next run.`);
   process.exit(1);
@@ -176,9 +183,20 @@ await fs.writeFile(audioPath, audioBuf);
 const audioSec = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', audioPath]).toString().trim());
 log(`Audio: ${audioSec.toFixed(1)} s`);
 
-// Lengths asked of the page, in seconds of the RECORDING: the chops' audio span, and the whole.
-const chopKeys = Object.keys(CHOPS).filter((k) => CHOPS[k] * CHOP_SPEED < audioSec);
-const totals = [...chopKeys.map((k) => CHOPS[k] * CHOP_SPEED), audioSec];
+/**
+ * How a length is made: { whole, speed, T } — the whole MukhWak sped up (at most
+ * MAX_SPEED), else its start at MAX_SPEED cut to the length. Null: the whole at
+ * normal speed already fits (the 'full' video serves that place).
+ */
+function lengthPlan(L) {
+  if (audioSec <= L + 0.5) return null;
+  const sp = Math.ceil((audioSec / L) * 100) / 100;
+  return sp <= MAX_SPEED ? { whole: true, speed: sp, T: audioSec / sp } : { whole: false, speed: MAX_SPEED, T: L };
+}
+// Lengths asked of the page, in seconds of the RECORDING: each cut one's audio span, and the whole.
+const cutSpans = [...new Set(Object.values(LENGTHS).flatMap((m) => Object.values(m)))]
+  .filter((L) => lengthPlan(L)?.whole === false).map((L) => L * MAX_SPEED);
+const totals = [...cutSpans, audioSec];
 // Today's approved meanings, fingerprinted: the quick check makes everything
 // again later in the day if they change (an edit or a new approval).
 const fingerprint = await meaningsFingerprint(sgpcSpec
@@ -277,20 +295,21 @@ for (const lang of LANGS.filter((l) => info.langs.includes(l))) {
       if (wide) entry.wide = { images: entry.post.images };
       const videos = entry[into].videos = {};
       // Queued now, made all together after the pictures (several at once — see PARALLEL).
-      const make = (key, plan, T, speed, long) => videoJobs.push(async () => {
+      // whole: the whole MukhWak (sped up or not); false: its start, cut to the length.
+      const make = (key, plan, T, speed, long, whole) => videoJobs.push(async () => {
         const file = `${lang}/video${tag}-${key}.mp4`;
         const bytes = await makeVideo(plan, images, T, path.join(DIR, file), { width: long ? FULL_RES : 1080, long, speed, wide });
-        videos[key] = { file, seconds: Math.round(T), bytes, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
-        log(`${lang} ${into} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}, ${(bytes / 1e6).toFixed(1)} MB`);
+        videos[key] = { file, seconds: Math.round(T), bytes, whole, ...(speed !== 1 ? { speed: Math.round(speed * 100) / 100 } : {}) };
+        log(`${lang} ${into} ${key}: ${Math.round(T)} s${speed !== 1 ? ` at ×${videos[key].speed}` : ''}${whole ? '' : ' (the start)'}, ${(bytes / 1e6).toFixed(1)} MB`);
       });
-      // 60 s and 90 s: the start of the MukhWak at the chop speed — the same timings, cut off.
-      for (const k of chopKeys) make(k, cutPlan(scale(full, CHOP_SPEED), CHOPS[k], audioSec / CHOP_SPEED), CHOPS[k], CHOP_SPEED, false);
-      make('full', full, audioSec, 1, audioSec > 200);
-      // The whole MukhWak sped up just enough for a 3-minute Short / Reel.
-      if (FIT && audioSec > FIT_SECONDS) {
-        const sp = Math.ceil((audioSec / FIT_SECONDS) * 100) / 100;
-        make('fit', scale(full, sp), audioSec / sp, sp, audioSec / sp > 200);
+      // Only the lengths this shape's places take (LENGTHS).
+      for (const [key, L] of Object.entries(LENGTHS[into])) {
+        const p = lengthPlan(L);
+        if (!p) continue;
+        if (p.whole) make(key, scale(full, p.speed), p.T, p.speed, p.T > 200, true);
+        else make(key, cutPlan(scale(full, MAX_SPEED), L, audioSec / MAX_SPEED), L, MAX_SPEED, false, false);
       }
+      make('full', full, audioSec, 1, audioSec > 200, true);
     }
   }
   index.langs[lang] = entry;

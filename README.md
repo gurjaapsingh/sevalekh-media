@@ -9,9 +9,10 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 | | |
 |---|---|
 | Pictures 9:16 and 4:5 | `mukhwak/pa/story-01.jpg …`, `mukhwak/pa/post-01.jpg …` |
-| Videos 9:16 | `video-reel.mp4` (90 s) and `video-min.mp4` (60 s, for Instagram / Facebook stories) — the start, at 1.6×; `video-full.mp4` (whole recording, normal speed); `video-fit.mp4` (whole, sped up just enough to last 2:59) — each under 44 MB |
-| Videos 4:5 | the same, named `video-4x5-reel.mp4` … (Instagram / Facebook feed; switch in Admin) |
-| Videos 16:9 | the same, named `video-16x9-reel.mp4` … (YouTube, Facebook feed, X): the 4:5 cards on a blurred copy of themselves. Variable `WIDE_VIDEOS=0` turns them off |
+| Videos 9:16 | `video-min.mp4` **1:00** — Stories & Status (Instagram / Facebook Story, WhatsApp Status, Snapchat) · `video-reel.mp4` **1:30** — Reels (Instagram, Facebook), TikTok · `video-fit.mp4` **2:59** — Shorts (YouTube Shorts, Instagram Reels, TikTok) · `video-full.mp4` the whole MukhWak — each under 44 MB |
+| Videos 4:5 | `video-4x5-feed.mp4` **2:20** — feed posts (Instagram, Facebook, X, LinkedIn, Threads) · `video-4x5-full.mp4` the whole (switch in Admin) |
+| Videos 16:9 | `video-16x9-feed.mp4` **2:20** — X · `video-16x9-full.mp4` the whole — YouTube, Facebook feed: the 4:5 cards on a blurred copy of themselves. Variable `WIDE_VIDEOS=0` turns them off |
+| How the lengths are made | the whole MukhWak sped up just enough, **at most ×1.6** (the Admin's setting; the voice keeps its pitch) — if even that is too long, its start at ×1.6, cut to the length. A MukhWak already shorter than a length skips it (the whole one serves). |
 | Thumbnails | `thumb.jpg` 1280×720 (YouTube) and `preview.jpg` 1200×630 (link previews): ਮੁੱਖਵਾਕ · date, the opening Gurbani, granth.web.app |
 | Index for the app | `mukhwak/latest.json` |
 | A page for people | `index.html` |
@@ -20,7 +21,7 @@ What it makes, for each language in `LANGS` (default `pa,en,pnb,hi` — ਪੰ�
 
 1. A headless browser opens `https://sevalekh.com/#/mukhwak` and asks the page for its cards (`window.sevalekhMukhwak`, in `src/mediaBot.ts`). So the robot needs no keys and no copy of SevaLekh's data — it sees what any visitor sees.
 2. It downloads SGPC's recording directly (no browser, so SGPC's CORS block doesn't matter).
-3. ffmpeg turns cards + audio into the videos. The cards follow the recitation: the first card stays over the opening (25 s at 1×), the verses in proportion, and the closing card over the repeat at the recording's end (about 14% of it, 12–90 s — the last verses and the opening sung again). The 90-second video keeps those timings and ends on a few seconds of the closing card. Videos are encoded three at a time with x264's `veryfast` preset (still pictures don't gain from slower presets), so a run of 24 videos (3 kinds × 2 sizes × 4 languages) takes a few minutes.
+3. ffmpeg turns cards + audio into the videos. The cards follow the recitation: the first card stays over the opening (25 s at 1×), the verses in proportion, and the closing card over the repeat at the recording's end (about 14% of it, 12–90 s — the last verses and the opening sung again). The 90-second video keeps those timings and ends on a few seconds of the closing card. Videos are encoded three at a time with x264's `veryfast` preset (still pictures don't gain from slower presets), so a run of about 28 videos (4 + 2 + 2 per language × 4 languages) takes a few minutes.
 4. The workflow publishes the result on GitHub Pages, replacing yesterday's.
 
 A quick check (`check.mjs`, a few seconds) runs every 15 minutes from 05:15 to 12:45 India time (17:45–01:15 the evening before in Edmonton). The slow build starts only once BaniDB has today's MukhWak, SGPC's audio is up, and today's isn't published yet — so early checks just wait instead of failing. GitHub often starts scheduled runs late or skips slots when it's busy; many cheap checks make the morning video dependable.
@@ -128,7 +129,7 @@ Optional repository *variables*: `PUSH_QUIET_MINUTES` (60), `PUSH_MIN_GAP_HOURS`
 
 ## Good to know
 
-- **Speeds:** the 60- and 90-second videos use the Admin's chop speed (1.6× by default); `video-fit.mp4` picks its own speed (recording length ÷ 179 s). Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.
+- **Speeds:** each shortened video is the whole MukhWak at the speed that fits (recording length ÷ the length), at most the Admin's speed (1.6× by default); beyond that, its start at that speed. The JSON marks each video `whole: true/false`. Any other speed can be made on a phone in the app (⏩ ×), or asked of the Telegram bot (`@yourbot 1.25x 2:00`). Each run's log prints the settings it saw.
 
 - **GitHub pauses scheduled workflows** in a repository with no activity for 60 days. If it stops, open Actions and re-enable it (or push any small change).
 - **Limits:** GitHub Pages sites up to 1 GB, about 100 GB of downloads a month — far more than a day's files (roughly 60–80 MB for three languages).
