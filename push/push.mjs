@@ -742,10 +742,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { initializeApp, cert } = await import('firebase-admin/app');
   const { getFirestore } = await import('firebase-admin/firestore');
   const { getMessaging } = await import('firebase-admin/messaging');
+  // The key file as it is, or base64 of it; a byte-order mark or stray spaces don't matter.
+  const parse = (t) => JSON.parse(t.replace(/^\uFEFF/, '').trim());
   let sa;
-  try { sa = JSON.parse(raw); } catch {
-    console.log('::error::FIREBASE_PUSH_SA is not valid JSON — paste the whole key file.');
-    process.exit(1);
+  try { sa = parse(raw); } catch {
+    try { sa = parse(Buffer.from(raw.trim(), 'base64').toString('utf8')); } catch {
+      const t = raw.trim();
+      console.log(`::error::FIREBASE_PUSH_SA is not valid JSON (${t.length} characters, starts "${t.slice(0, 1)}", ends "${t.slice(-1)}") — paste the whole key file.`);
+      process.exit(1);
+    }
   }
   const app = initializeApp({ credential: cert(sa), projectId: sa.project_id });
   const db = getFirestore(app);
