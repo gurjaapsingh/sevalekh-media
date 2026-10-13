@@ -189,9 +189,14 @@ export const TEXT = {
       url: '/#/mukhwak',
     };
   },
-  news(a) {
-    const t = clip(a.title, 90);
-    return { title: /^\p{Extended_Pictographic}/u.test(t) ? t : `📢 ${t}`, body: clip(plain(a.body), 180), url: a.url || '/', tag: `news-${a.id}` };
+  /** An Admin's news: the Punjabi version for Punjabi phones when there is one. */
+  news(a, lang) {
+    const pa = lang !== 'en' && a.titlePa;
+    const t = clip(pa ? a.titlePa : a.title, 90);
+    return {
+      title: /^\p{Extended_Pictographic}/u.test(t) ? t : `📢 ${t}`,
+      body: clip(plain(pa ? a.bodyPa : a.body), 180), url: a.url || '/', tag: `news-${a.id}`,
+    };
   },
   ardasNew(list, lang) {
     const pa = lang !== 'en';
@@ -567,16 +572,19 @@ export async function run(ctx) {
     const ob = await db.collection('pushOutbox').where('done', '==', false).limit(10).get();
     for (const d of ob.docs) {
       const x = d.data();
-      const note = { key: d.id, id: d.id, title: clip(x.title, 120), body: clip(x.body, 400), url: String(x.url || '/'), at: now };
+      const note = {
+        key: d.id, id: d.id, title: clip(x.title, 120), body: clip(x.body, 400), url: String(x.url || '/'), at: now,
+        ...(x.titlePa ? { titlePa: clip(x.titlePa, 120), bodyPa: clip(x.bodyPa, 400) } : {}),
+      };
       let n = null;
       if (x.audience === 'team') {
         const mem = await db.collection('members').where('status', '==', 'active').get();
         n = 0;
-        for (const m of mem.docs) if (Number(m.data().role) >= 2) n += await sendUser(m.id, 'team', () => TEXT.news(note));
+        for (const m of mem.docs) if (Number(m.data().role) >= 2) n += await sendUser(m.id, 'team', (lang) => TEXT.news(note, lang));
       } else if (x.audience === 'android-app') {
         const toks = await db.collection('pushTokens').where('platform', '==', 'android-app').get();
         n = await sendTokens(toks.docs.map((t) => ({ id: t.id, ...t.data() })).filter((t) => Array.isArray(t.topics) && t.topics.length),
-          'news', () => TEXT.news(note), 'to Android apps');
+          'news', (lang) => TEXT.news(note, lang), 'to Android apps');
       } else {
         S.digest.news.push(note);          // everyone: by zone, in their chosen hours
       }
@@ -682,7 +690,7 @@ export async function run(ctx) {
       }
       // 📢 news: rare, so each one goes as it is (no gap) — up to 3 at a time.
       const news = wants('news') ? S.digest.news.filter((x) => x.at > (z.since.news ?? now)).slice(-3) : [];
-      for (const a of news) { await sendTopic('news', zid, () => TEXT.news(a)); tally.news = (tally.news ?? 0) + 1; }
+      for (const a of news) { await sendTopic('news', zid, (lang) => TEXT.news(a, lang)); tally.news = (tally.news ?? 0) + 1; }
       if (news.length) z.since.news = now;
       if (wants('mukhwak') && S.mukhwak?.date && z.mukhwak !== S.mukhwak.date && now - (S.mukhwak.at || 0) < 20 * HOUR) {
         await sendTopic('mukhwak', zid, (lang) => TEXT.mukhwak(S.mukhwak, lang));

@@ -161,8 +161,8 @@ test('the Sangat, MukhWak and an Admin’s news', async () => {
   db.put('ardasReports/x1', { ardasId: 'a1', replyId: '', why: 'spam', at: t + 4, done: false });
   db.put('members/mod', { role: 4, status: 'active' });
   // An Admin's news for everyone, and the Android app update.
-  db.put('pushOutbox/o1', { title: '📢 ਨਵੀਂ ਸਹੂਲਤ · New feature', body: 'Notifications!', url: '/#/mukhwak', audience: 'all', at: t, done: false });
-  db.put('pushOutbox/o2', { title: '📱 ਸੇਵਾਲੇਖ ਐਪ 1.0.4', body: 'Open the app to update.', url: '/', audience: 'android-app', at: t, done: false });
+  db.put('pushOutbox/o1', { title: '📢 New feature', body: 'Notifications!', url: '/#/mukhwak', audience: 'all', at: t, done: false });
+  db.put('pushOutbox/o2', { title: '📱 New SevaLekh app 1.0.4', body: 'Open the app to update.', titlePa: '📱 ਸੇਵਾਲੇਖ ਐਪ 1.0.4', bodyPa: 'ਅੱਪਡੇਟ ਕਰੋ', url: '/', audience: 'android-app', at: t, done: false });
   // Tomorrow's MukhWak is out (India's morning = Edmonton's evening before).
   setMukhwak({ date: '2026-10-13', ang: 610, made: new Date(t).toISOString() });
   fcm.clear();
@@ -179,7 +179,7 @@ test('the Sangat, MukhWak and an Admin’s news', async () => {
   assert.equal(db.data('pushOutbox/o2').done, true);
   assert.equal(fcm.to('H')[0].title, '📱 ਸੇਵਾਲੇਖ ਐਪ 1.0.4');
   const news = fcm.to(`sl_news_pa_${ED_DAY}`);
-  assert.equal(news[0].title, '📢 ਨਵੀਂ ਸਹੂਲਤ · New feature');
+  assert.equal(news[0].title, '📢 New feature', 'no Punjabi version: English for everyone');
   assert.equal(news[0].url, '/#/mukhwak');
   const mk = fcm.to(`sl_mukhwak_pa_${ED_DAY}`);
   assert.equal(mk.length, 1);
