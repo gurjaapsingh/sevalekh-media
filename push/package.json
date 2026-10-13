@@ -1,0 +1,9 @@
+{
+  "name": "sevalekh-push",
+  "private": true,
+  "type": "module",
+  "description": "SevaLekh notifications: sends Web Push through Firebase Cloud Messaging every 15 minutes (see ../README.md → Notifications).",
+  "scripts": { "push": "node push.mjs", "test": "node --test push.test.mjs" },
+  "engines": { "node": ">=22" },
+  "dependencies": { "firebase-admin": "^14.5.0" }
+}
